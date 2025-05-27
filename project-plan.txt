@@ -1,0 +1,42 @@
+nest new cirql-backend
+cd cirql-backend
+# MongoDB
+pnpm add @nestjs/mongoose mongoose
+
+# Configuration
+pnpm add @nestjs/config
+
+# JWT
+pnpm add @nestjs/jwt passport-jwt
+pnpm add -D @types/passport-jwt # -D for dev dependency
+
+# Google OAuth
+pnpm add @nestjs/passport passport passport-google-oauth20
+pnpm add -D @types/passport-google-oauth20
+
+# Swagger
+pnpm add @nestjs/swagger swagger-ui-express
+
+# Validation
+pnpm add class-validator class-transformer
+
+# Security
+pnpm add helmet
+
+
+PORT=3001
+MONGODB_URI=your_mongodb_connection_string
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback
+JWT_SECRET=your_super_secret_jwt_key
+JWT_EXPIRATION_TIME=3600s
+FRONTEND_URL=http://localhost:3000 # Or your frontend's port
+
+nest g module users
+nest g service users
+nest g controller users --no-spec
+
+nest g module auth
+nest g service auth
+nest g controller auth --no-spec
