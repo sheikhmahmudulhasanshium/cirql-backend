@@ -1,17 +1,13 @@
+// src/auth/auth.controller.ts
 import { Controller, Get, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService, AuthTokenResponse, SanitizedUser } from './auth.service';
 import { ConfigService } from '@nestjs/config';
-import { Response as ExpressResponse } from 'express'; // Renamed import
 import { User, UserDocument } from '../users/schemas/user.schema';
-import {
-  ApiTags,
-  ApiOperation,
-  // ApiResponse, // Removed unused import
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request as ExpressRequest } from 'express';
 import { Types } from 'mongoose';
+import * as express from 'express';
 
 interface AuthenticatedRequest extends ExpressRequest {
   user?: UserDocument | SanitizedUser;
@@ -29,7 +25,6 @@ export class AuthController {
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Initiate Google OAuth login' })
   async googleAuth() {
-    // Removed unused _req parameter
     // Guard redirects
   }
 
@@ -38,21 +33,24 @@ export class AuthController {
   @ApiOperation({ summary: 'Google OAuth callback URL' })
   googleAuthRedirect(
     @Req() req: AuthenticatedRequest,
-    @Res() res: ExpressResponse, // Use the renamed ExpressResponse type
+    @Res({ passthrough: true }) res: express.Response, // <--- ADDED { passthrough: true }
   ) {
     const user = req.user as UserDocument;
 
     if (!user) {
-      return res.redirect(
+      res.status(401).redirect(
+        // Keep status for clarity
         `${this.configService.get<string>('FRONTEND_URL')}/login?error=authenticationFailed`,
       );
+      return; // Explicit return after redirect
     }
 
     const tokenResponse: AuthTokenResponse = this.authService.login(user);
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
-    return res.redirect(
+    res.redirect(
       `${frontendUrl}/auth/callback?token=${tokenResponse.accessToken}`,
     );
+    // No explicit return needed here if res.redirect is the last action
   }
 
   @Get('status')

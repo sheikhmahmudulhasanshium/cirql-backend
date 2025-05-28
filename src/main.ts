@@ -1,20 +1,28 @@
+// src/main.ts
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import {
+  SwaggerModule,
+  DocumentBuilder,
+  SwaggerCustomOptions, // <--- IMPORT THIS
+} from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
-// import { join } from 'path'; // Removed as 'join' is not used while useStaticAssets is commented out
+// Keep 'join' if you uncomment app.useStaticAssets later, otherwise it's not needed here
+// For ServeStaticModule, 'join' is used in app.module.ts
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
 
-  // Temporarily commented out to diagnose Swagger UI asset loading on Vercel
-  // If Swagger UI works without this, then there was an interaction.
-  // If Swagger UI still fails, this line was not the primary cause for that issue.
-  // app.useStaticAssets(join(__dirname, '..', 'public'));
+  // Note: ServeStaticModule in AppModule now handles serving from 'public'
+  // The app.useStaticAssets line below is an alternative way.
+  // If ServeStaticModule is configured, you likely don't need app.useStaticAssets for the 'public' folder.
+  // If you had other static asset needs outside of what ServeStaticModule does, you might use it.
+  // For now, with ServeStaticModule for '/public', this is likely redundant for favicon:
+  // app.useStaticAssets(join(__dirname, '..', 'public')); // This would serve from /public relative to dist
 
   app.enableCors({
     origin:
@@ -22,29 +30,63 @@ async function bootstrap() {
     credentials: true,
   });
 
-  const swaggerConfig = new DocumentBuilder()
+  const swaggerDocConfig = new DocumentBuilder() // Renamed to avoid conflict with customOptions.config
     .setTitle('Cirql Backend API')
     .setDescription('The Cirql API description')
     .setVersion('1.0')
-    .addBearerAuth() // If you use Bearer token auth for your APIs
+    .addBearerAuth()
     .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  const document = SwaggerModule.createDocument(app, swaggerDocConfig);
 
-  // It's generally good practice to ensure Swagger UI setup is robust.
-  // Default options for swagger-ui-express usually work, but for serverless,
-  // sometimes explicit options are needed if problems persist.
-  // For now, we'll stick to the basic setup.
-  SwaggerModule.setup('api', app, document, {
-    // explorer: true, // Optional: enables a search bar in Swagger UI
-    // customSiteTitle: 'Cirql API Docs', // Optional: custom title
-    // swaggerOptions: { // Optional: pass further swagger-ui options
-    //   docExpansion: 'none', // 'list' (default), 'full', 'none'
-    //   filter: true,
-    //   showRequestDuration: true,
-    // },
-  });
+  // --- Define Custom Swagger UI Options ---
+  const customOptions: SwaggerCustomOptions = {
+    customSiteTitle: 'Cirql API Docs',
+    customfavIcon: '/favicon.ico', // This will be served by ServeStaticModule
 
-  app.use(helmet());
+    // Example: Basic custom CSS
+    customCss: `
+      .swagger-ui .topbar { background-color: #222; }
+      .swagger-ui .topbar .link img { content: url('/favicon.ico'); height: 30px; margin: 5px 10px; }
+    `,
+    // You can add more custom CSS or CDN links like in the example project if desired
+    // customCssUrl: 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css',
+    // customJs: [
+    //   'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.js',
+    //   'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.js',
+    // ],
+    swaggerOptions: {
+      docExpansion: 'list', // 'list', 'full', 'none'
+      filter: true,
+      showRequestDuration: true,
+      // tryItOutEnabled: true, // Default is true
+    },
+  };
+  // -------------------------------------
+
+  SwaggerModule.setup('api', app, document, customOptions); // <--- USE customOptions
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        // Adjust CSP if using external Swagger UI assets from CDN
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            'https://cdnjs.cloudflare.com',
+          ], // Allow inline styles and cdnjs for CSS
+          scriptSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            'https://cdnjs.cloudflare.com',
+          ], // Allow inline scripts and cdnjs for JS
+          imgSrc: ["'self'", 'data:', '/favicon.ico'], // Allow self, data URLs, and your favicon
+          // Add other sources if needed
+        },
+      },
+    }),
+  );
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -57,13 +99,11 @@ async function bootstrap() {
   );
 
   const port = configService.get<number>('PORT') || 3001;
-  // For Vercel, app.listen() is effectively ignored as Vercel manages the server lifecycle.
-  // This is mainly for local development.
   if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-    // Only listen locally
     await app.listen(port);
     console.log(`Application is running on: http://localhost:${port}`);
     console.log(`Swagger docs available at: http://localhost:${port}/api`);
+    console.log(`Favicon should be at: http://localhost:${port}/favicon.ico`);
   } else {
     console.log(
       'Application configured for serverless deployment (Vercel). Not calling app.listen().',
