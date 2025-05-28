@@ -4,89 +4,79 @@ import { AppModule } from './app.module';
 import {
   SwaggerModule,
   DocumentBuilder,
-  SwaggerCustomOptions, // <--- IMPORT THIS
+  SwaggerCustomOptions,
 } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
-// Keep 'join' if you uncomment app.useStaticAssets later, otherwise it's not needed here
-// For ServeStaticModule, 'join' is used in app.module.ts
+import {
+  Express,
+  Request as ExpressRequest,
+  Response as ExpressResponse,
+} from 'express'; // Import Express types
 
-async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  const configService = app.get(ConfigService);
+let cachedServer: Express | undefined;
 
-  // Note: ServeStaticModule in AppModule now handles serving from 'public'
-  // The app.useStaticAssets line below is an alternative way.
-  // If ServeStaticModule is configured, you likely don't need app.useStaticAssets for the 'public' folder.
-  // If you had other static asset needs outside of what ServeStaticModule does, you might use it.
-  // For now, with ServeStaticModule for '/public', this is likely redundant for favicon:
-  // app.useStaticAssets(join(__dirname, '..', 'public')); // This would serve from /public relative to dist
-
+// Shared function to configure common app settings
+function configureCommonAppSettings(
+  app: NestExpressApplication,
+  configService: ConfigService,
+  envSuffix: string = '', // To differentiate titles/configs if needed, e.g., '(Local)'
+) {
   app.enableCors({
     origin:
       configService.get<string>('FRONTEND_URL') || 'http://localhost:3000',
     credentials: true,
   });
 
-  const swaggerDocConfig = new DocumentBuilder() // Renamed to avoid conflict with customOptions.config
-    .setTitle('Cirql Backend API')
-    .setDescription('The Cirql API description')
+  const swaggerDocConfig = new DocumentBuilder()
+    .setTitle(`Cirql Backend API ${envSuffix}`.trim())
+    .setDescription(`The Cirql API description ${envSuffix}`.trim())
     .setVersion('1.0')
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerDocConfig);
 
-  // --- Define Custom Swagger UI Options ---
-  const customOptions: SwaggerCustomOptions = {
-    customSiteTitle: 'Cirql API Docs',
-    customfavIcon: '/favicon.ico', // This will be served by ServeStaticModule
-
-    // Example: Basic custom CSS
+  const customSwaggerOptions: SwaggerCustomOptions = {
+    customSiteTitle: `Cirql API Docs ${envSuffix}`.trim(),
+    customfavIcon: '/favicon.ico', // Served by ServeStaticModule
     customCss: `
-      .swagger-ui .topbar { background-color: #222; }
+      .swagger-ui .topbar { background-color: ${envSuffix ? '#333' : '#222'}; } /* Slightly different for local */
       .swagger-ui .topbar .link img { content: url('/favicon.ico'); height: 30px; margin: 5px 10px; }
     `,
-    // You can add more custom CSS or CDN links like in the example project if desired
-    // customCssUrl: 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css',
-    // customJs: [
-    //   'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.js',
-    //   'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.js',
-    // ],
     swaggerOptions: {
-      docExpansion: 'list', // 'list', 'full', 'none'
+      docExpansion: 'list',
       filter: true,
       showRequestDuration: true,
-      // tryItOutEnabled: true, // Default is true
     },
   };
-  // -------------------------------------
 
-  SwaggerModule.setup('api', app, document, customOptions); // <--- USE customOptions
+  SwaggerModule.setup('api', app, document, customSwaggerOptions);
 
   app.use(
     helmet({
       contentSecurityPolicy: {
-        // Adjust CSP if using external Swagger UI assets from CDN
         directives: {
           defaultSrc: ["'self'"],
           styleSrc: [
             "'self'",
             "'unsafe-inline'",
             'https://cdnjs.cloudflare.com',
-          ], // Allow inline styles and cdnjs for CSS
+          ], // For potential CDN swagger CSS
           scriptSrc: [
             "'self'",
             "'unsafe-inline'",
             'https://cdnjs.cloudflare.com',
-          ], // Allow inline scripts and cdnjs for JS
-          imgSrc: ["'self'", 'data:', '/favicon.ico'], // Allow self, data URLs, and your favicon
-          // Add other sources if needed
+          ], // For potential CDN swagger JS
+          imgSrc: ["'self'", 'data:'], // Corrected: 'self' covers /favicon.ico from same origin
+          // Add other sources like 'connect-src' if your API makes external calls from Swagger UI
+          // e.g., connectSrc: ["'self'", "https://accounts.google.com", "https://www.googleapis.com"],
         },
       },
     }),
   );
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -97,21 +87,56 @@ async function bootstrap() {
       },
     }),
   );
-
-  const port = configService.get<number>('PORT') || 3001;
-  if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-    await app.listen(port);
-    console.log(`Application is running on: http://localhost:${port}`);
-    console.log(`Swagger docs available at: http://localhost:${port}/api`);
-    console.log(`Favicon should be at: http://localhost:${port}/favicon.ico`);
-  } else {
-    console.log(
-      'Application configured for serverless deployment (Vercel). Not calling app.listen().',
-    );
-  }
 }
 
-bootstrap().catch((err) => {
-  console.error('Error during application bootstrap:', err);
-  process.exit(1);
-});
+async function bootstrapServerInstance(): Promise<Express> {
+  if (cachedServer) {
+    return cachedServer;
+  }
+
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const configService = app.get(ConfigService);
+
+  configureCommonAppSettings(app, configService); // Use shared configuration function
+
+  // For Vercel (serverless), initialize but don't listen
+  await app.init();
+
+  const expressApp = app.getHttpAdapter().getInstance();
+  cachedServer = expressApp;
+  return expressApp;
+}
+
+// This is the handler Vercel will use
+export default async (req: ExpressRequest, res: ExpressResponse) => {
+  const server = await bootstrapServerInstance();
+  server(req, res); // Pass the request and response to the cached Express app
+};
+
+// Local development bootstrapping (only if NOT on Vercel and NOT in production for other reasons)
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  async function startLocalDevelopmentServer() {
+    const localApp =
+      await NestFactory.create<NestExpressApplication>(AppModule);
+    const configService = localApp.get(ConfigService);
+
+    configureCommonAppSettings(localApp, configService, '(Local)'); // Use shared configuration function with suffix
+
+    const port = configService.get<number>('PORT') || 3001;
+    await localApp.listen(port);
+    console.log(
+      `Application for local development is running on: http://localhost:${port}`,
+    );
+    console.log(
+      `Swagger docs available locally at: http://localhost:${port}/api`,
+    );
+    console.log(
+      `Favicon should be available locally at: http://localhost:${port}/favicon.ico`,
+    );
+  }
+
+  startLocalDevelopmentServer().catch((err) => {
+    console.error('Error during local application start:', err);
+    process.exit(1);
+  });
+}
