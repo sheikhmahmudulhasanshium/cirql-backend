@@ -1,18 +1,17 @@
-// src/auth/auth.controller.ts
 import { Controller, Get, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService, AuthTokenResponse, SanitizedUser } from './auth.service';
 import { ConfigService } from '@nestjs/config';
-import { Response } from 'express';
+import { Response as ExpressResponse } from 'express'; // Renamed import
 import { User, UserDocument } from '../users/schemas/user.schema';
 import {
   ApiTags,
   ApiOperation,
-  ApiResponse,
+  // ApiResponse, // Removed unused import
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Request as ExpressRequest } from 'express';
-import { Types } from 'mongoose'; // <--- IMPORT Types from mongoose
+import { Types } from 'mongoose';
 
 interface AuthenticatedRequest extends ExpressRequest {
   user?: UserDocument | SanitizedUser;
@@ -29,21 +28,18 @@ export class AuthController {
   @Get('google')
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Initiate Google OAuth login' })
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async googleAuth(@Req() _req: AuthenticatedRequest) {
+  async googleAuth() {
+    // Removed unused _req parameter
     // Guard redirects
   }
 
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Google OAuth callback URL' })
-  @ApiResponse({
-    status: 200,
-    description:
-      'Successfully authenticated with Google. Redirects with token.',
-  })
-  @ApiResponse({ status: 401, description: 'Not authenticated.' })
-  googleAuthRedirect(@Req() req: AuthenticatedRequest, @Res() res: Response) {
+  googleAuthRedirect(
+    @Req() req: AuthenticatedRequest,
+    @Res() res: ExpressResponse, // Use the renamed ExpressResponse type
+  ) {
     const user = req.user as UserDocument;
 
     if (!user) {
@@ -63,23 +59,14 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Check authentication status and get user profile' })
-  @ApiResponse({
-    status: 200,
-    description: 'User is authenticated. Returns user profile.',
-    type: SanitizedUser,
-  })
-  @ApiResponse({ status: 401, description: 'User is not authenticated.' })
   checkAuthStatus(@Req() req: AuthenticatedRequest): SanitizedUser {
     const userDocument = req.user as UserDocument;
-
-    // Ensure 'User' class is imported from '../users/schemas/user.schema'
-    // It seems like it is, from the imports at the top.
     const plainUserObject = userDocument.toObject<
       User & { _id: Types.ObjectId }
     >();
 
     const sanitizedUserResponse: SanitizedUser = {
-      _id: plainUserObject._id, // This should now be correctly typed as Types.ObjectId
+      _id: plainUserObject._id,
       email: plainUserObject.email,
       firstName: plainUserObject.firstName,
       lastName: plainUserObject.lastName,

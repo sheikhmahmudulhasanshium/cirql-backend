@@ -1,35 +1,48 @@
-// src/main.ts
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
-import { NestExpressApplication } from '@nestjs/platform-express'; // <--- IMPORT THIS
-import { join } from 'path'; // <--- IMPORT THIS
+import { NestExpressApplication } from '@nestjs/platform-express';
+// import { join } from 'path'; // Removed as 'join' is not used while useStaticAssets is commented out
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule); // <--- SPECIFY NestExpressApplication
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
 
-  // Serve static assets from the 'public' folder
-  app.useStaticAssets(join(__dirname, '..', 'public')); // <--- ADD THIS LINE
+  // Temporarily commented out to diagnose Swagger UI asset loading on Vercel
+  // If Swagger UI works without this, then there was an interaction.
+  // If Swagger UI still fails, this line was not the primary cause for that issue.
+  // app.useStaticAssets(join(__dirname, '..', 'public'));
 
-  // Enable CORS - Add this if your frontend is on a different port/domain
   app.enableCors({
     origin:
       configService.get<string>('FRONTEND_URL') || 'http://localhost:3000',
     credentials: true,
   });
 
-  const config = new DocumentBuilder()
+  const swaggerConfig = new DocumentBuilder()
     .setTitle('Cirql Backend API')
     .setDescription('The Cirql API description')
     .setVersion('1.0')
-    .addBearerAuth()
+    .addBearerAuth() // If you use Bearer token auth for your APIs
     .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+
+  // It's generally good practice to ensure Swagger UI setup is robust.
+  // Default options for swagger-ui-express usually work, but for serverless,
+  // sometimes explicit options are needed if problems persist.
+  // For now, we'll stick to the basic setup.
+  SwaggerModule.setup('api', app, document, {
+    // explorer: true, // Optional: enables a search bar in Swagger UI
+    // customSiteTitle: 'Cirql API Docs', // Optional: custom title
+    // swaggerOptions: { // Optional: pass further swagger-ui options
+    //   docExpansion: 'none', // 'list' (default), 'full', 'none'
+    //   filter: true,
+    //   showRequestDuration: true,
+    // },
+  });
 
   app.use(helmet());
   app.useGlobalPipes(
@@ -44,9 +57,18 @@ async function bootstrap() {
   );
 
   const port = configService.get<number>('PORT') || 3001;
-  await app.listen(port); // This line will be ignored by Vercel, as Vercel handles the listening.
-  console.log(`Application is running on: http://localhost:${port}`); // For local dev
-  console.log(`Swagger docs available at: http://localhost:${port}/api`); // For local dev
+  // For Vercel, app.listen() is effectively ignored as Vercel manages the server lifecycle.
+  // This is mainly for local development.
+  if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+    // Only listen locally
+    await app.listen(port);
+    console.log(`Application is running on: http://localhost:${port}`);
+    console.log(`Swagger docs available at: http://localhost:${port}/api`);
+  } else {
+    console.log(
+      'Application configured for serverless deployment (Vercel). Not calling app.listen().',
+    );
+  }
 }
 
 bootstrap().catch((err) => {

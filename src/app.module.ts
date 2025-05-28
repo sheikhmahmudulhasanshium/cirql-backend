@@ -1,9 +1,7 @@
-// src/app.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import * as Joi from 'joi';
-
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
@@ -20,51 +18,38 @@ interface EnvironmentVariables {
   GOOGLE_CALLBACK_URL: string;
 }
 
-// Disable problematic rules for the Joi schema definition block
-
-const envValidationSchema: Joi.ObjectSchema<EnvironmentVariables> =
-  Joi.object<EnvironmentVariables>({
-    PORT: Joi.number().default(3001),
-    MONGODB_URI: Joi.string().required(),
-    JWT_SECRET: Joi.string().required(),
-    JWT_EXPIRATION_TIME: Joi.string().default('3600s'),
-    FRONTEND_URL: Joi.string().uri().required(),
-    GOOGLE_CLIENT_ID: Joi.string().required(),
-    GOOGLE_CLIENT_SECRET: Joi.string().required(),
-    GOOGLE_CALLBACK_URL: Joi.string().uri().required(),
-  });
+// With @types/joi installed, Joi.object, Joi.string, etc., should be correctly typed.
+const envValidationSchema = Joi.object<EnvironmentVariables, true>({
+  PORT: Joi.number().default(3001),
+  MONGODB_URI: Joi.string().required(),
+  JWT_SECRET: Joi.string().required(),
+  JWT_EXPIRATION_TIME: Joi.string().default('3600s'),
+  FRONTEND_URL: Joi.string().uri().required(),
+  GOOGLE_CLIENT_ID: Joi.string().required(),
+  GOOGLE_CLIENT_SECRET: Joi.string().required(),
+  GOOGLE_CALLBACK_URL: Joi.string().uri().required(),
+});
 
 @Module({
   imports: [
-    // Use a block comment to disable ONLY @typescript-eslint/no-unsafe-assignment
-    // for the ConfigModule.forRoot() call and its argument, as this is the only
-    // rule firing for the validationOptions property.
-
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      validationSchema: envValidationSchema,
+      validationSchema: envValidationSchema, // This should now be type-safe
       validationOptions: {
         allowUnknown: true,
         abortEarly: false,
       },
     }),
-
-    // In app.module.ts
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
         const uri = configService.get<string>('MONGODB_URI');
-        console.log('Attempting to connect with MONGODB_URI:', uri); // <-- ADD THIS LINE
         if (!uri) {
-          // This case should be caught by Joi, but good to double-check
           throw new Error('MONGODB_URI is not defined or empty!');
         }
         return {
           uri: uri,
-          // You might want to add these common options, though not strictly related to this error:
-          // useNewUrlParser: true,
-          // useUnifiedTopology: true,
         };
       },
       inject: [ConfigService],

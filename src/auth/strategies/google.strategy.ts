@@ -4,7 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import {
   Strategy,
   VerifyCallback,
-  Profile, // Profile from 'passport-google-oauth20'
+  Profile as GoogleProfile, // Renamed original Profile
   StrategyOptions,
 } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
@@ -14,7 +14,6 @@ import { UserDocument } from '../../users/schemas/user.schema';
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(
-    // ... constructor same as before
     private readonly configService: ConfigService,
     private readonly authService: AuthService,
   ) {
@@ -40,27 +39,34 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   async validate(
     accessToken: string,
     refreshToken: string,
-    profile: Profile, // Profile from 'passport-google-oauth20'
+    profile: GoogleProfile, // Use the (renamed) Profile type
     done: VerifyCallback,
   ): Promise<any> {
-    // const { id, name, emails, photos } = profile; // Avoid direct destructuring of potentially undefined properties
+    const googleId = profile.id;
 
-    const googleId = profile.id; // 'id' is usually guaranteed
-    const email = profile.emails?.[0]?.value;
-    const picture = profile.photos?.[0]?.value;
-    const firstName = profile.name?.givenName;
-    const lastName = profile.name?.familyName;
+    // More robust (verbose) optional chaining
+    const email =
+      profile.emails && profile.emails[0] && profile.emails[0].value;
+    const picture =
+      profile.photos && profile.photos[0] && profile.photos[0].value;
+    const firstName = profile.name && profile.name.givenName;
+    const lastName = profile.name && profile.name.familyName;
 
     if (!googleId) {
-      console.error('Google profile missing id:', profile);
+      console.error(
+        'Google profile missing id:',
+        JSON.stringify(profile, null, 2),
+      );
       return done(
         new InternalServerErrorException('Google profile is missing ID.'),
         false,
       );
     }
-    // Email is critical for your authService.validateOAuthLogin
     if (!email) {
-      console.error('Google profile missing email:', profile);
+      console.error(
+        'Google profile missing email:',
+        JSON.stringify(profile, null, 2),
+      );
       return done(
         new InternalServerErrorException('Email not provided by Google OAuth.'),
         false,
