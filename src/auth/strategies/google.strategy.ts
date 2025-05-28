@@ -4,16 +4,17 @@ import { PassportStrategy } from '@nestjs/passport';
 import {
   Strategy,
   VerifyCallback,
-  Profile,
+  Profile, // Profile from 'passport-google-oauth20'
   StrategyOptions,
-} from 'passport-google-oauth20'; // Import StrategyOptions
+} from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
-import { UserDocument } from '../../users/schemas/user.schema'; // Corrected import path
+import { UserDocument } from '../../users/schemas/user.schema';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(
+    // ... constructor same as before
     private readonly configService: ConfigService,
     private readonly authService: AuthService,
   ) {
@@ -22,7 +23,6 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     const callbackURL = configService.get<string>('GOOGLE_CALLBACK_URL');
 
     if (!clientID || !clientSecret || !callbackURL) {
-      // This should ideally be caught by Joi validation in AppModule at startup
       throw new InternalServerErrorException(
         'Google OAuth environment variables are not properly configured.',
       );
@@ -33,43 +33,50 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       clientSecret,
       callbackURL,
       scope: ['email', 'profile'],
-      passReqToCallback: false, // Important for constructor overload selection
-    } as StrategyOptions); // The cast is kept as passport-google-oauth20 options can be complex.
-    // If TypeScript doesn't complain without it and it works, it can be removed.
-    // Given passReqToCallback: false, StrategyOptions (without request) is the correct type.
+      passReqToCallback: false,
+    } as StrategyOptions);
   }
 
   async validate(
     accessToken: string,
-    refreshToken: string, // refreshToken might be undefined depending on Google's response and your settings
-    profile: Profile,
+    refreshToken: string,
+    profile: Profile, // Profile from 'passport-google-oauth20'
     done: VerifyCallback,
   ): Promise<any> {
-    // 'any' is acceptable here as 'done' callback handles final typing for Passport
-    const { id, name, emails, photos } = profile;
+    // const { id, name, emails, photos } = profile; // Avoid direct destructuring of potentially undefined properties
 
-    // Ensure emails and photos exist and have at least one entry
-    const email = emails?.[0]?.value;
-    const picture = photos?.[0]?.value;
-    const firstName = name?.givenName;
-    const lastName = name?.familyName;
+    const googleId = profile.id; // 'id' is usually guaranteed
+    const email = profile.emails?.[0]?.value;
+    const picture = profile.photos?.[0]?.value;
+    const firstName = profile.name?.givenName;
+    const lastName = profile.name?.familyName;
 
-    // accessToken and refreshToken can be stored if needed for future API calls to Google on behalf of the user
-    // For example: const googleAuthData = { accessToken, refreshToken };
+    if (!googleId) {
+      console.error('Google profile missing id:', profile);
+      return done(
+        new InternalServerErrorException('Google profile is missing ID.'),
+        false,
+      );
+    }
+    // Email is critical for your authService.validateOAuthLogin
+    if (!email) {
+      console.error('Google profile missing email:', profile);
+      return done(
+        new InternalServerErrorException('Email not provided by Google OAuth.'),
+        false,
+      );
+    }
 
     try {
-      // AuthService.validateOAuthLogin handles user creation/update logic
       const user: UserDocument = await this.authService.validateOAuthLogin(
-        id, // googleId
+        googleId,
         email,
         firstName,
         lastName,
         picture,
       );
-      // The 'user' object (UserDocument) will be attached to req.user
       done(null, user);
     } catch (err) {
-      // Pass error to Passport, which will typically result in a 500 or appropriate error response
       console.error('Error during Google OAuth validation:', err);
       done(err, false);
     }

@@ -21,7 +21,7 @@ interface EnvironmentVariables {
 }
 
 // Disable problematic rules for the Joi schema definition block
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
+
 const envValidationSchema: Joi.ObjectSchema<EnvironmentVariables> =
   Joi.object<EnvironmentVariables>({
     PORT: Joi.number().default(3001),
@@ -33,14 +33,13 @@ const envValidationSchema: Joi.ObjectSchema<EnvironmentVariables> =
     GOOGLE_CLIENT_SECRET: Joi.string().required(),
     GOOGLE_CALLBACK_URL: Joi.string().uri().required(),
   });
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 
 @Module({
   imports: [
     // Use a block comment to disable ONLY @typescript-eslint/no-unsafe-assignment
     // for the ConfigModule.forRoot() call and its argument, as this is the only
     // rule firing for the validationOptions property.
-    /* eslint-disable @typescript-eslint/no-unsafe-assignment */
+
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
@@ -50,7 +49,6 @@ const envValidationSchema: Joi.ObjectSchema<EnvironmentVariables> =
         abortEarly: false,
       },
     }),
-    /* eslint-enable @typescript-eslint/no-unsafe-assignment */
 
     // In app.module.ts
     MongooseModule.forRootAsync({
