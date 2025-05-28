@@ -45,3 +45,46 @@ pnpm add bcrypt
 pnpm add -D @types/bcrypt
 
 pnpm add joi
+
+Okay, here's a concise note summarizing the key configurations and purposes of the 4 different environment setups (2 for backend, 2 for frontend) to help you recall and explain it later:
+Core Concept: The goal is flexible authentication across different environments (local/production frontend talking to local/production backend). This is achieved by:
+Backend's Passport strategy always using its own environment-specific callback URL (GOOGLE_CALLBACK_TO_BACKEND_URL).
+Frontend dynamically sending its own desired callback URL (where it wants to receive the token) to the backend via the state parameter (finalRedirectUri).
+Backend validating this finalRedirectUri against a whitelist (ALLOWED_FRONTEND_ORIGINS) before redirecting the user with the JWT.
+I. Backend Environment Configurations
+(A) Backend - LOCAL DEVELOPMENT (cirql-backend/.env)
+NODE_ENV: development
+BACKEND_URL: http://localhost:3001
+GOOGLE_CALLBACK_TO_BACKEND_URL: http://localhost:3001/auth/google/callback
+Purpose: Tells Google where to send the auth code back to this local backend. Must be in Google Console's "Authorized redirect URIs".
+FRONTEND_URL: http://localhost:3000
+Purpose: Default/fallback URL for the frontend if state is invalid/missing.
+ALLOWED_FRONTEND_ORIGINS: http://localhost:3000,https://cirql.vercel.app
+Purpose: Whitelist of frontend origins this local backend will trust to redirect to with a token (allows testing local BE with prod FE, or local BE with local FE).
+Secrets (MONGODB_URI, JWT_SECRET, GOOGLE_CLIENT_ID/SECRET): Development-specific values.
+(B) Backend - PRODUCTION (Platform Env Vars, e.g., on Vercel for cirql-backend)
+NODE_ENV: production
+BACKEND_URL: https://cirql-backend.vercel.app (your actual deployed backend URL)
+GOOGLE_CALLBACK_TO_BACKEND_URL: https://cirql-backend.vercel.app/auth/google/callback
+Purpose: Tells Google where to send the auth code back to this production backend. Must be in Google Console's "Authorized redirect URIs".
+FRONTEND_URL: https://cirql.vercel.app
+Purpose: Default/fallback URL for the production frontend.
+ALLOWED_FRONTEND_ORIGINS: https://cirql.vercel.app,http://localhost:3000
+Purpose: Whitelist of frontend origins this production backend will trust (allows prod BE with prod FE, or prod BE with local FE for testing).
+Secrets (MONGODB_URI, JWT_SECRET, GOOGLE_CLIENT_ID/SECRET): Production-grade, secure values.
+II. Frontend Environment Configurations
+(C) Frontend - LOCAL DEVELOPMENT (No .env.local; using next.config.js defaults or shell vars)
+NEXT_PUBLIC_BACKEND_URL: Typically defaults to http://localhost:3001 (local backend). Can be overridden (e.g., via shell command NEXT_PUBLIC_BACKEND_URL=https://cirql-backend.vercel.app pnpm dev) to point local frontend to production backend for testing.
+NEXT_PUBLIC_FRONTEND_URL: http://localhost:3000 (default for local).
+finalRedirectUri in state parameter (Dynamically Generated): http://localhost:3000/auth/google/callback
+Purpose: Tells the backend (local or prod) where this local frontend expects to receive the token.
+(D) Frontend - PRODUCTION (Platform Env Vars, e.g., on Vercel for cirql-frontend)
+NEXT_PUBLIC_BACKEND_URL: https://cirql-backend.vercel.app (points to production backend).
+NEXT_PUBLIC_FRONTEND_URL: https://cirql.vercel.app.
+finalRedirectUri in state parameter (Dynamically Generated): https://cirql.vercel.app/auth/google/callback
+Purpose: Tells the production backend where this production frontend expects to receive the token.
+Key Takeaway for Explaining Later:
+Backend's GOOGLE_CALLBACK_TO_BACKEND_URL is static for its environment (local or prod) and tells Google where to send the initial code.
+Frontend's finalRedirectUri (in state) is dynamic and tells the backend where the frontend client wants the final JWT redirect.
+Backend's ALLOWED_FRONTEND_ORIGINS acts as a security whitelist for that final JWT redirect, ensuring the backend only sends tokens to trusted frontend origins, regardless of what the state parameter claims. This list should contain both your production frontend origin and http://localhost:3000 in both backend environments to allow flexible testing.
+This setup achieves your goal: authentication can work "no matter what the environment is" (local FE to local BE, local FE to prod BE, prod FE to prod BE) because the system is designed to handle these different origin combinations through configuration and the dynamic state parameter.

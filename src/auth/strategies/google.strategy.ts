@@ -1,15 +1,16 @@
-// src/auth/strategies/google.strategy.ts
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import {
   Strategy,
   VerifyCallback,
-  Profile as GoogleProfile, // Keep using this alias
+  Profile as GoogleProfile,
   StrategyOptions,
+  StrategyOptionsWithRequest, // Attempt to use this for passReqToCallback: true
 } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
-import { UserDocument } from '../../users/schemas/user.schema';
+import { UserDocument } from '../../users/schemas/user.schema'; // Adjust path if needed
+import { Request } from 'express';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
@@ -19,56 +20,51 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   ) {
     const clientID = configService.get<string>('GOOGLE_CLIENT_ID');
     const clientSecret = configService.get<string>('GOOGLE_CLIENT_SECRET');
-    const callbackURL = configService.get<string>('GOOGLE_CALLBACK_URL');
+    const callbackURL = configService.get<string>(
+      'GOOGLE_CALLBACK_TO_BACKEND_URL',
+    );
 
     if (!clientID || !clientSecret || !callbackURL) {
       throw new InternalServerErrorException(
-        'Google OAuth environment variables are not properly configured.',
+        'Google OAuth environment variables (ID, SECRET, or GOOGLE_CALLBACK_TO_BACKEND_URL) are not properly configured.',
       );
     }
 
-    super({
+    // Prefer StrategyOptionsWithRequest if your @types/passport-google-oauth20 supports it well
+    // otherwise, StrategyOptions should work if its definition of passReqToCallback is boolean.
+    const strategyOptions: StrategyOptionsWithRequest | StrategyOptions = {
       clientID,
       clientSecret,
-      callbackURL,
+      callbackURL, // This is where Google redirects TO THIS BACKEND
       scope: ['email', 'profile'],
-      passReqToCallback: false,
-    } as StrategyOptions);
+      passReqToCallback: true, // To make `state` available via `req.query` if needed directly here,
+      // but primarily ensures Google passes it through to the callback URL
+      // which AuthController will then access.
+    };
+
+    super(strategyOptions);
   }
 
   async validate(
+    req: Request, // `req` is available due to passReqToCallback: true
     accessToken: string,
     refreshToken: string,
-    profile: GoogleProfile, // Using the aliased GoogleProfile
+    profile: GoogleProfile,
     done: VerifyCallback,
   ): Promise<any> {
-    // Log the profile to see its actual structure in Vercel logs if issues persist
-    // console.log('Google Profile Received:', JSON.stringify(profile, null, 2));
+    // The `state` parameter sent by the frontend in the initial /auth/google?state=...
+    // will be passed back by Google in the query string to this backend callback.
+    // We will access it in the AuthController using @Query('state').
 
-    const googleId = profile.id; // 'id' is usually guaranteed on the Profile type
-
-    // 'emails' is generally reliable as an array on the Profile type
-    const email = profile.emails?.[0]?.value;
-
-    // Access name and photos primarily from _json which is usually more stable.
-    // The 'profile.name' and 'profile.photos' on the base Profile type can be optional or less structured.
-    // The _json object often has these with consistent naming.
+    const googleId = profile.id;
+    const email = profile.emails?.[0]?.value || profile._json?.email;
     const firstName = profile._json?.given_name;
     const lastName = profile._json?.family_name;
     const picture = profile._json?.picture;
 
-    // Fallback if _json doesn't have them, but Profile type itself might (though it caused errors)
-    // We can make these fallbacks conditional to avoid 'any' if possible.
-    // However, for now, let's prioritize _json and assume it's sufficient.
-    // If you find _json is missing these, we'll need to see the logged 'profile' object.
-
-    // const alternativeFirstName = profile.name?.givenName; // If Profile.name is typed
-    // const alternativeLastName = profile.name?.familyName;   // If Profile.name is typed
-    // const alternativePicture = profile.photos?.[0]?.value; // If Profile.photos is typed
-
     if (!googleId) {
       console.error(
-        'Google profile missing id:',
+        '[GoogleStrategy] Google profile missing id:',
         JSON.stringify(profile, null, 2),
       );
       return done(
@@ -77,13 +73,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       );
     }
 
-    // If primary email from profile.emails is missing, try _json.email
-    // Also consider checking profile._json.email_verified if that's important
-    const finalEmail = email || profile._json?.email;
-
-    if (!finalEmail) {
+    if (!email) {
       console.error(
-        'Google profile missing email:',
+        '[GoogleStrategy] Google profile missing email:',
         JSON.stringify(profile, null, 2),
       );
       return done(
@@ -93,18 +85,17 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     }
 
     try {
-      // The types of firstName, lastName, picture will be string | undefined here,
-      // which should be compatible with validateOAuthLogin's expected string | undefined.
       const user: UserDocument = await this.authService.validateOAuthLogin(
         googleId,
-        finalEmail,
-        firstName, // Now string | undefined
-        lastName, // Now string | undefined
-        picture, // Now string | undefined
+        email,
+        firstName,
+        lastName,
+        picture,
       );
+      // Passport will attach this 'user' object to req.user in the AuthController
       done(null, user);
     } catch (err) {
-      console.error('Error during Google OAuth validation:', err);
+      console.error('[GoogleStrategy] Error during OAuth validation:', err);
       done(err, false);
     }
   }
