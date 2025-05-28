@@ -1,5 +1,14 @@
 // src/auth/auth.controller.ts
-import { Controller, Get, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Req,
+  UseGuards,
+  Redirect, // Keep
+  HttpStatus, // Keep for status codes
+  // UnauthorizedException, // Remove if not explicitly thrown by this controller
+  // HttpCode, // Remove if not explicitly used by @HttpCode decorator
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService, AuthTokenResponse, SanitizedUser } from './auth.service';
 import { ConfigService } from '@nestjs/config';
@@ -7,7 +16,7 @@ import { User, UserDocument } from '../users/schemas/user.schema';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request as ExpressRequest } from 'express';
 import { Types } from 'mongoose';
-import * as express from 'express';
+// No direct 'express' import needed for this controller if using @Redirect
 
 interface AuthenticatedRequest extends ExpressRequest {
   user?: UserDocument | SanitizedUser;
@@ -31,26 +40,26 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Google OAuth callback URL' })
-  googleAuthRedirect(
-    @Req() req: AuthenticatedRequest,
-    @Res({ passthrough: true }) res: express.Response, // <--- ADDED { passthrough: true }
-  ) {
+  @Redirect() // Use NestJS's @Redirect decorator
+  googleAuthRedirect(@Req() req: AuthenticatedRequest): {
+    url: string;
+    statusCode: number;
+  } {
+    // Explicit return type
     const user = req.user as UserDocument;
 
     if (!user) {
-      res.status(401).redirect(
-        // Keep status for clarity
-        `${this.configService.get<string>('FRONTEND_URL')}/login?error=authenticationFailed`,
-      );
-      return; // Explicit return after redirect
+      const errorUrl = `${this.configService.get<string>('FRONTEND_URL')}/login?error=authenticationFailed`;
+      // Using HttpStatus.FOUND (302) which is common for temporary redirects.
+      // Other options include HttpStatus.MOVED_PERMANENTLY (301) if appropriate.
+      return { url: errorUrl, statusCode: HttpStatus.FOUND };
     }
 
     const tokenResponse: AuthTokenResponse = this.authService.login(user);
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
-    res.redirect(
-      `${frontendUrl}/auth/callback?token=${tokenResponse.accessToken}`,
-    );
-    // No explicit return needed here if res.redirect is the last action
+    const successUrl = `${frontendUrl}/auth/callback?token=${tokenResponse.accessToken}`;
+
+    return { url: successUrl, statusCode: HttpStatus.FOUND };
   }
 
   @Get('status')
