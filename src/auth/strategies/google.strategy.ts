@@ -4,7 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import {
   Strategy,
   VerifyCallback,
-  Profile as GoogleProfile, // Keep the alias for clarity
+  Profile as GoogleProfile, // Keep using this alias
   StrategyOptions,
 } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
@@ -32,8 +32,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       clientSecret,
       callbackURL,
       scope: ['email', 'profile'],
-      passReqToCallback: false, // This is fine
-    } as StrategyOptions); // Cast to StrategyOptions if strictness demands it
+      passReqToCallback: false,
+    } as StrategyOptions);
   }
 
   async validate(
@@ -42,17 +42,29 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     profile: GoogleProfile, // Using the aliased GoogleProfile
     done: VerifyCallback,
   ): Promise<any> {
-    const { id, emails, photos, name, _json } = profile; // Destructure for easier access
+    // Log the profile to see its actual structure in Vercel logs if issues persist
+    // console.log('Google Profile Received:', JSON.stringify(profile, null, 2));
 
-    // console.log('Google Profile:', JSON.stringify(profile, null, 2)); // Helpful for debugging in Vercel logs
+    const googleId = profile.id; // 'id' is usually guaranteed on the Profile type
 
-    const googleId = id;
+    // 'emails' is generally reliable as an array on the Profile type
+    const email = profile.emails?.[0]?.value;
 
-    // Use optional chaining more defensively and access _json if direct properties are problematic
-    const email = emails?.[0]?.value || _json?.email;
-    const picture = photos?.[0]?.value || _json?.picture;
-    const firstName = name?.givenName || _json?.given_name;
-    const lastName = name?.familyName || _json?.family_name;
+    // Access name and photos primarily from _json which is usually more stable.
+    // The 'profile.name' and 'profile.photos' on the base Profile type can be optional or less structured.
+    // The _json object often has these with consistent naming.
+    const firstName = profile._json?.given_name;
+    const lastName = profile._json?.family_name;
+    const picture = profile._json?.picture;
+
+    // Fallback if _json doesn't have them, but Profile type itself might (though it caused errors)
+    // We can make these fallbacks conditional to avoid 'any' if possible.
+    // However, for now, let's prioritize _json and assume it's sufficient.
+    // If you find _json is missing these, we'll need to see the logged 'profile' object.
+
+    // const alternativeFirstName = profile.name?.givenName; // If Profile.name is typed
+    // const alternativeLastName = profile.name?.familyName;   // If Profile.name is typed
+    // const alternativePicture = profile.photos?.[0]?.value; // If Profile.photos is typed
 
     if (!googleId) {
       console.error(
@@ -64,13 +76,16 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         false,
       );
     }
-    if (!email) {
+
+    // If primary email from profile.emails is missing, try _json.email
+    // Also consider checking profile._json.email_verified if that's important
+    const finalEmail = email || profile._json?.email;
+
+    if (!finalEmail) {
       console.error(
         'Google profile missing email:',
         JSON.stringify(profile, null, 2),
       );
-      // It's possible the email is in _json.email_verified if the primary one is missing
-      // but for now, let's assume primary email is required.
       return done(
         new InternalServerErrorException('Email not provided by Google OAuth.'),
         false,
@@ -78,12 +93,14 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     }
 
     try {
+      // The types of firstName, lastName, picture will be string | undefined here,
+      // which should be compatible with validateOAuthLogin's expected string | undefined.
       const user: UserDocument = await this.authService.validateOAuthLogin(
         googleId,
-        email,
-        firstName,
-        lastName,
-        picture,
+        finalEmail,
+        firstName, // Now string | undefined
+        lastName, // Now string | undefined
+        picture, // Now string | undefined
       );
       done(null, user);
     } catch (err) {
