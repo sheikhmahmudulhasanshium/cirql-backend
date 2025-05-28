@@ -5,10 +5,15 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express'; // <--- IMPORT THIS
+import { join } from 'path'; // <--- IMPORT THIS
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule); // <--- SPECIFY NestExpressApplication
   const configService = app.get(ConfigService);
+
+  // Serve static assets from the 'public' folder
+  app.useStaticAssets(join(__dirname, '..', 'public')); // <--- ADD THIS LINE
 
   // Enable CORS - Add this if your frontend is on a different port/domain
   app.enableCors({
@@ -39,13 +44,12 @@ async function bootstrap() {
   );
 
   const port = configService.get<number>('PORT') || 3001;
-  await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Swagger docs available at: http://localhost:${port}/api`);
+  await app.listen(port); // This line will be ignored by Vercel, as Vercel handles the listening.
+  console.log(`Application is running on: http://localhost:${port}`); // For local dev
+  console.log(`Swagger docs available at: http://localhost:${port}/api`); // For local dev
 }
 
 bootstrap().catch((err) => {
-  // Handle potential errors during bootstrap
   console.error('Error during application bootstrap:', err);
   process.exit(1);
 });
