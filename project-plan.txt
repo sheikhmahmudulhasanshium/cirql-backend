@@ -40,3 +40,8 @@ nest g controller users --no-spec
 nest g module auth
 nest g service auth
 nest g controller auth --no-spec
+
+pnpm add bcrypt
+pnpm add -D @types/bcrypt
+
+pnpm add joi
