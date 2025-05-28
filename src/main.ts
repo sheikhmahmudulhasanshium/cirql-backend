@@ -10,11 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import {
-  Express,
-  Request as ExpressRequest,
-  Response as ExpressResponse,
-} from 'express'; // Import Express types
+import { Express } from 'express'; // Request and Response types not needed here if default export is the app instance
 
 let cachedServer: Express | undefined;
 
@@ -40,11 +36,23 @@ function configureCommonAppSettings(
 
   const customSwaggerOptions: SwaggerCustomOptions = {
     customSiteTitle: `Cirql API Docs ${envSuffix}`.trim(),
-    customfavIcon: '/favicon.ico', // Served by ServeStaticModule
+    customfavIcon: '/favicon.ico', // Served by your ServeStaticModule from /public
+
+    // --- Tell Swagger to load its core assets from a CDN ---
+    customCssUrl: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css',
+    ],
+    customJs: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.js',
+    ],
+    // Your inline custom CSS will be applied AFTER the CDN CSS
     customCss: `
       .swagger-ui .topbar { background-color: ${envSuffix ? '#333' : '#222'}; } /* Slightly different for local */
       .swagger-ui .topbar .link img { content: url('/favicon.ico'); height: 30px; margin: 5px 10px; }
+      /* Add any other custom styles here */
     `,
+    // -----------------------------------------------------
     swaggerOptions: {
       docExpansion: 'list',
       filter: true,
@@ -63,12 +71,12 @@ function configureCommonAppSettings(
             "'self'",
             "'unsafe-inline'",
             'https://cdnjs.cloudflare.com',
-          ], // For potential CDN swagger CSS
+          ], // Allow CDN for Swagger CSS
           scriptSrc: [
             "'self'",
             "'unsafe-inline'",
             'https://cdnjs.cloudflare.com',
-          ], // For potential CDN swagger JS
+          ], // Allow CDN for Swagger JS
           imgSrc: ["'self'", 'data:'], // Corrected: 'self' covers /favicon.ico from same origin
           // Add other sources like 'connect-src' if your API makes external calls from Swagger UI
           // e.g., connectSrc: ["'self'", "https://accounts.google.com", "https://www.googleapis.com"],
@@ -107,11 +115,8 @@ async function bootstrapServerInstance(): Promise<Express> {
   return expressApp;
 }
 
-// This is the handler Vercel will use
-export default async (req: ExpressRequest, res: ExpressResponse) => {
-  const server = await bootstrapServerInstance();
-  server(req, res); // Pass the request and response to the cached Express app
-};
+// This is the handler Vercel will use: export the promise that resolves to the Express app instance
+export default bootstrapServerInstance();
 
 // Local development bootstrapping (only if NOT on Vercel and NOT in production for other reasons)
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
