@@ -4,7 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import {
   Strategy,
   VerifyCallback,
-  Profile as GoogleProfile, // Renamed original Profile
+  Profile as GoogleProfile, // Keep the alias for clarity
   StrategyOptions,
 } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
@@ -32,25 +32,27 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       clientSecret,
       callbackURL,
       scope: ['email', 'profile'],
-      passReqToCallback: false,
-    } as StrategyOptions);
+      passReqToCallback: false, // This is fine
+    } as StrategyOptions); // Cast to StrategyOptions if strictness demands it
   }
 
   async validate(
     accessToken: string,
     refreshToken: string,
-    profile: GoogleProfile, // Use the (renamed) Profile type
+    profile: GoogleProfile, // Using the aliased GoogleProfile
     done: VerifyCallback,
   ): Promise<any> {
-    const googleId = profile.id;
+    const { id, emails, photos, name, _json } = profile; // Destructure for easier access
 
-    // More robust (verbose) optional chaining
-    const email =
-      profile.emails && profile.emails[0] && profile.emails[0].value;
-    const picture =
-      profile.photos && profile.photos[0] && profile.photos[0].value;
-    const firstName = profile.name && profile.name.givenName;
-    const lastName = profile.name && profile.name.familyName;
+    // console.log('Google Profile:', JSON.stringify(profile, null, 2)); // Helpful for debugging in Vercel logs
+
+    const googleId = id;
+
+    // Use optional chaining more defensively and access _json if direct properties are problematic
+    const email = emails?.[0]?.value || _json?.email;
+    const picture = photos?.[0]?.value || _json?.picture;
+    const firstName = name?.givenName || _json?.given_name;
+    const lastName = name?.familyName || _json?.family_name;
 
     if (!googleId) {
       console.error(
@@ -67,6 +69,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         'Google profile missing email:',
         JSON.stringify(profile, null, 2),
       );
+      // It's possible the email is in _json.email_verified if the primary one is missing
+      // but for now, let's assume primary email is required.
       return done(
         new InternalServerErrorException('Email not provided by Google OAuth.'),
         false,
