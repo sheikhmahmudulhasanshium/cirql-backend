@@ -1,98 +1,101 @@
 <p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+  <a href="https://cirql-backend.vercel.app/" target="_blank">
+    <img src="https://raw.githubusercontent.com/sheikhmahmudulhasanshium/cirql-backend/main/public/logo-full.svg" width="200" alt="Cirql Logo" />
+  </a>
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+<h1 align="center">Cirql Backend API</h1>
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
+<p align="center">
+  The backend service for the Cirql application, built with <a href="http://nestjs.com/" target="_blank">NestJS</a>.
+  This API handles user authentication (including Google OAuth), user management, and other core functionalities.
+  <br />
+  Deployed at: <a href="https://cirql-backend.vercel.app/" target="_blank">cirql-backend.vercel.app</a>
+  <br />
+  Companion Frontend: <a href="https://cirql.vercel.app/" target="_blank">cirql.vercel.app</a> | <a href="https://github.com/sheikhmahmudulhasanshium/cirql-frontend/" target="_blank">Frontend Repository</a>
 </p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+This repository contains the source code for the Cirql Backend API. It provides a robust and scalable foundation for the Cirql application, featuring:
 
-## Project setup
+*   **Authentication:** JWT-based authentication and Google OAuth 2.0 integration.
+*   **User Management:** CRUD operations for user profiles.
+*   **Configuration Management:** Environment-based configuration using `@nestjs/config` and Joi validation.
+*   **Database Integration:** MongoDB with Mongoose ORM.
+*   **API Documentation:** Automated API documentation with Swagger (OpenAPI).
+*   **Security:** Basic security headers with `helmet`.
+*   **Validation:** Input validation using `class-validator` and `class-transformer`.
+*   **Deployment:** Configured for Vercel deployment (live at [cirql-backend.vercel.app](https://cirql-backend.vercel.app/)) and local development.
+
+## Prerequisites
+
+Before you begin, ensure you have met the following requirements:
+
+*   [Node.js](https://nodejs.org/) (LTS version recommended)
+*   [pnpm](https://pnpm.io/) (or npm/yarn, but pnpm is used in this project's scripts)
+*   A MongoDB instance (local or cloud-hosted, e.g., MongoDB Atlas)
+*   Google OAuth 2.0 Credentials (Client ID and Client Secret) from the [Google Cloud Console](https://console.cloud.google.com/).
+*   (Optional) Local setup for the Cirql Frontend: [cirql-frontend](https://github.com/sheikhmahmudulhasanshium/cirql-frontend/)
+
+## Environment Setup
+
+1.  Create a `.env` file in the root of the project. You can copy `env.example` if it exists or create it manually.
+
+2.  Update the `.env` file with your specific configurations for **local development**:
+
+    ```env
+    # Application
+    NODE_ENV=development
+    PORT=3001
+
+    # MongoDB
+    MONGODB_URI=your_mongodb_connection_string_for_dev
+
+    # JWT
+    JWT_SECRET=your_strong_jwt_secret_for_dev
+    JWT_EXPIRATION_TIME=3600s # e.g., 1h, 7d
+
+    # URLs (for local development)
+    FRONTEND_URL=http://localhost:3000 # Assumes local frontend runs on port 3000
+    BACKEND_URL=http://localhost:3001 # This backend's local URL
+
+    # Google OAuth (for local development)
+    GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+    GOOGLE_CLIENT_SECRET=your_google_client_secret
+    GOOGLE_CALLBACK_TO_BACKEND_URL=http://localhost:3001/auth/google/callback
+
+    # Security/CORS (for local development)
+    ALLOWED_FRONTEND_ORIGINS=http://localhost:3000 # Allow local frontend
+    ```
+
+    **Important for Google OAuth:**
+    *   In your Google Cloud Console OAuth 2.0 client settings:
+        *   **Authorized redirect URIs:**
+            *   `http://localhost:3001/auth/google/callback` (for local backend dev)
+            *   `https://cirql-backend.vercel.app/auth/google/callback` (for production backend)
+        *   **Authorized JavaScript origins:**
+            *   `http://localhost:3000` (for local frontend dev)
+            *   `https://cirql.vercel.app` (for production frontend)
+
+    **Production Environment Variables (Vercel):**
+    When deploying to Vercel, you will need to set these environment variables in your Vercel project settings, pointing to your production services and URLs.
+    *   `NODE_ENV`: `production`
+    *   `MONGODB_URI`: Your production MongoDB connection string.
+    *   `JWT_SECRET`: A strong, unique JWT secret for production.
+    *   `JWT_EXPIRATION_TIME`: e.g., `3600s`
+    *   `FRONTEND_URL`: `https://cirql.vercel.app`
+    *   `BACKEND_URL`: `https://cirql-backend.vercel.app`
+    *   `GOOGLE_CLIENT_ID`: Your Google Client ID (can be the same as dev).
+    *   `GOOGLE_CLIENT_SECRET`: Your Google Client Secret (can be the same as dev).
+    *   `GOOGLE_CALLBACK_TO_BACKEND_URL`: `https://cirql-backend.vercel.app/auth/google/callback`
+    *   `ALLOWED_FRONTEND_ORIGINS`: `https://cirql.vercel.app` (and any other trusted production frontend origins, comma-separated)
+
+## Installation
+
+Clone the repository and install the dependencies:
 
 ```bash
-$ pnpm install
-```
-
-## Compile and run the project
-
-```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
-```
-
-## Run tests
-
-```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+git clone https://github.com/sheikhmahmudulhasanshium/cirql-backend.git
+cd cirql-backend
+pnpm install
