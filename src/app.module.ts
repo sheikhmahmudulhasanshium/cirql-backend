@@ -9,6 +9,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { SettingsModule } from './settings/settings.module';
 
 // Define the structure of your expected environment variables
 interface EnvironmentVariables {
@@ -89,6 +90,7 @@ const envValidationSchema = Joi.object<EnvironmentVariables, true>({
     }),
     UsersModule,
     AuthModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
