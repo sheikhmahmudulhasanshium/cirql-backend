@@ -1,118 +1,75 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsString,
-  IsNotEmpty,
-  IsObject,
-  IsOptional,
-  ValidateNested,
-  IsBoolean,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
 
-// --- DTOs for User Preference Sub-categories ---
 export class NotificationPreferencesDto {
-  @ApiPropertyOptional({ type: Boolean, default: true })
-  @IsOptional()
-  @IsBoolean()
-  email_digests_enabled?: boolean;
+  @ApiProperty({ example: true })
+  emailNotifications: boolean;
 
-  @ApiPropertyOptional({ type: Boolean, default: true })
-  @IsOptional()
-  @IsBoolean()
-  push_mentions_enabled?: boolean;
-
-  @ApiPropertyOptional({ type: Boolean, default: false })
-  @IsOptional()
-  @IsBoolean()
-  push_loop_activity_enabled?: boolean;
-
-  @ApiPropertyOptional({ type: String, default: 'never' })
-  @IsOptional()
-  @IsString()
-  snooze_duration_minutes?: string;
-}
-
-export class WellBeingPreferencesDto {
-  @ApiPropertyOptional({ type: Boolean, default: false })
-  @IsOptional()
-  @IsBoolean()
-  daily_usage_limit_enabled?: boolean;
-
-  @ApiPropertyOptional({ type: String, default: '60' })
-  @IsOptional()
-  @IsString()
-  daily_usage_limit_minutes?: string;
-}
-
-export class PrivacyControlsPreferencesDto {
-  @ApiPropertyOptional({ type: String, default: 'public' })
-  @IsOptional()
-  @IsString()
-  profile_visibility?: string;
-
-  @ApiPropertyOptional({ type: String, default: 'anyone' })
-  @IsOptional()
-  @IsString()
-  message_permissions?: string;
+  @ApiProperty({ example: false })
+  pushNotifications: boolean;
 }
 
 export class AccountSettingsPreferencesDto {
-  @ApiPropertyOptional({ type: Boolean, default: true })
-  @IsOptional()
-  @IsBoolean()
-  show_active_status_enabled?: boolean;
+  @ApiProperty({ example: true })
+  isPrivate: boolean;
+
+  @ApiProperty({ example: 'dark' })
+  theme: string;
 }
-// --- End User Preference Sub-category DTOs ---
+
+export class SecuritySettingsPreferencesDto {
+  @ApiProperty({ example: true })
+  enable2FA: boolean;
+
+  @ApiProperty({ example: 'email' })
+  recoveryMethod: string;
+}
+
+export class AccessibilityOptionsPreferencesDto {
+  @ApiProperty({ example: true })
+  highContrastMode: boolean;
+
+  @ApiProperty({ example: true })
+  screenReaderSupport: boolean;
+}
+
+export class ContentPreferencesDto {
+  @ApiProperty({ example: 'light' })
+  theme: string;
+
+  @ApiProperty({ example: ['sports', 'tech'] })
+  interests: string[];
+}
+
+export class UiCustomizationPreferencesDto {
+  @ApiProperty({ example: 'grid' })
+  layout: string;
+
+  @ApiProperty({ example: true })
+  animationsEnabled: boolean;
+}
 
 export class CreateSettingDto {
-  @ApiProperty({
-    description: 'Type of the setting.',
-    example: 'userPreferences',
-  })
-  @IsString()
-  @IsNotEmpty()
-  resourceType: string;
+  @ApiProperty()
+  userId: string;
 
-  @ApiProperty({
-    description: 'Identifier for the setting instance.',
-    example: 'general',
-  })
-  @IsString()
-  @IsNotEmpty()
-  resourceId: string;
+  @ApiProperty({ example: false })
+  isDefault: boolean;
 
-  // --- Fields for userPreferences ---
-  @ApiPropertyOptional({ type: NotificationPreferencesDto })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => NotificationPreferencesDto)
-  notification_preferences?: NotificationPreferencesDto;
+  @ApiProperty({ type: NotificationPreferencesDto })
+  notificationPreferences: NotificationPreferencesDto;
 
-  @ApiPropertyOptional({ type: WellBeingPreferencesDto })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => WellBeingPreferencesDto)
-  well_being?: WellBeingPreferencesDto;
+  @ApiProperty({ type: AccountSettingsPreferencesDto })
+  accountSettingsPreferences: AccountSettingsPreferencesDto;
 
-  @ApiPropertyOptional({ type: PrivacyControlsPreferencesDto })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => PrivacyControlsPreferencesDto)
-  privacy_controls?: PrivacyControlsPreferencesDto;
+  @ApiProperty({ type: SecuritySettingsPreferencesDto })
+  securitySettingsPreferences: SecuritySettingsPreferencesDto;
 
-  @ApiPropertyOptional({ type: AccountSettingsPreferencesDto })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => AccountSettingsPreferencesDto)
-  account_settings?: AccountSettingsPreferencesDto;
-  // --- End userPreferences Fields ---
+  @ApiProperty({ type: AccessibilityOptionsPreferencesDto })
+  accessibilityOptionsPreferences: AccessibilityOptionsPreferencesDto;
 
-  @ApiPropertyOptional({
-    description: 'Generic settings object for other resourceTypes.',
-    type: 'object',
-    additionalProperties: true,
-  })
-  @IsOptional()
-  @IsObject()
-  genericSettings?: Record<string, any>;
+  @ApiProperty({ type: ContentPreferencesDto })
+  contentPreferences: ContentPreferencesDto;
+
+  @ApiProperty({ type: UiCustomizationPreferencesDto })
+  uiCustomizationPreferences: UiCustomizationPreferencesDto;
 }
