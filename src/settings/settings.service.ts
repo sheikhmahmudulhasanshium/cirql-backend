@@ -1,3 +1,5 @@
+// backend/src/settings/settings.service.ts
+
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -45,16 +47,27 @@ export class SettingsService {
     return updatedSettings;
   }
 
+  // FIX IS HERE:
   async reset(userId: string): Promise<SettingDocument> {
-    const newDefaultSettings = new this.settingModel({ userId });
+    // 1. Create a new document in memory to get all the default values.
+    const defaultDoc = new this.settingModel({ userId });
 
+    // 2. Convert it to a plain object.
+    const replacementObject = defaultDoc.toObject();
+
+    // 3. THE FIX: Remove the auto-generated `_id` before the replace operation.
+    //    The `_id` is immutable and should not be part of the replacement payload.
+    delete replacementObject._id;
+
+    // 4. Now perform the replace. MongoDB will preserve the original `_id`.
     const resetSettings = await this.settingModel.findOneAndReplace(
-      { userId },
-      newDefaultSettings.toObject(),
+      { userId }, // The filter to find the document
+      replacementObject, // The replacement document (without _id)
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
 
     if (!resetSettings) {
+      // This is now less likely to happen with upsert: true, but good to keep.
       throw new NotFoundException(
         `Could not reset settings for user ID ${userId}`,
       );
