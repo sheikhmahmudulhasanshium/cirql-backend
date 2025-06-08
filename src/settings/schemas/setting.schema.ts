@@ -1,3 +1,5 @@
+// backend/src/settings/schemas/setting.schema.ts
+
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
@@ -19,8 +21,9 @@ export class AccountSettingsPreferences {
   @Prop({ default: false })
   isPrivate: boolean;
 
-  @Prop({ default: 'light' })
-  theme: string;
+  // REMOVED from here, as it's a UI preference.
+  // @Prop({ default: 'light' })
+  // theme: string;
 }
 
 @Schema({ _id: false }) // FIX: Disable auto _id for this subdocument
@@ -43,8 +46,9 @@ export class AccessibilityOptionsPreferences {
 
 @Schema({ _id: false }) // FIX: Disable auto _id for this subdocument
 export class ContentPreferences {
-  @Prop({ default: 'light' })
-  theme: string;
+  // REMOVED from here to avoid duplication. The primary theme setting is now in UiCustomizationPreferences.
+  // @Prop({ default: 'light' })
+  // theme: string;
 
   @Prop({ type: [String], default: [] })
   interests: string[];
@@ -57,6 +61,12 @@ export class UiCustomizationPreferences {
 
   @Prop({ default: true })
   animationsEnabled: boolean;
+
+  // --- FIX START ---
+  // Added theme setting to UI customization, where it belongs.
+  @Prop({ default: 'system' })
+  theme: 'light' | 'dark' | 'system';
+  // --- FIX END ---
 }
 
 // --- Main Document Schema ---

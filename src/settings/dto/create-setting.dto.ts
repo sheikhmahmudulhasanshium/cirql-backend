@@ -1,3 +1,5 @@
+// backend/src/settings/dto/create-setting.dto.ts
+
 import { ApiProperty } from '@nestjs/swagger';
 
 export class NotificationPreferencesDto {
@@ -12,8 +14,9 @@ export class AccountSettingsPreferencesDto {
   @ApiProperty({ example: true })
   isPrivate: boolean;
 
-  @ApiProperty({ example: 'dark' })
-  theme: string;
+  // REMOVED from here
+  // @ApiProperty({ example: 'dark' })
+  // theme: string;
 }
 
 export class SecuritySettingsPreferencesDto {
@@ -33,8 +36,9 @@ export class AccessibilityOptionsPreferencesDto {
 }
 
 export class ContentPreferencesDto {
-  @ApiProperty({ example: 'light' })
-  theme: string;
+  // REMOVED from here
+  // @ApiProperty({ example: 'light' })
+  // theme: string;
 
   @ApiProperty({ example: ['sports', 'tech'] })
   interests: string[];
@@ -46,6 +50,11 @@ export class UiCustomizationPreferencesDto {
 
   @ApiProperty({ example: true })
   animationsEnabled: boolean;
+
+  // --- FIX START ---
+  @ApiProperty({ example: 'system', enum: ['light', 'dark', 'system'] })
+  theme: 'light' | 'dark' | 'system';
+  // --- FIX END ---
 }
 
 export class CreateSettingDto {
