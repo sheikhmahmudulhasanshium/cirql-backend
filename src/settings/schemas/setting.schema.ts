@@ -1,5 +1,3 @@
-// backend/src/settings/schemas/setting.schema.ts
-
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
@@ -7,7 +5,7 @@ export type SettingDocument = Setting & Document;
 
 // --- Sub-Schemas with _id disabled ---
 
-@Schema({ _id: false }) // FIX: Disable auto _id for this subdocument
+@Schema({ _id: false })
 export class NotificationPreferences {
   @Prop({ default: true })
   emailNotifications: boolean;
@@ -16,17 +14,13 @@ export class NotificationPreferences {
   pushNotifications: boolean;
 }
 
-@Schema({ _id: false }) // FIX: Disable auto _id for this subdocument
+@Schema({ _id: false })
 export class AccountSettingsPreferences {
   @Prop({ default: false })
   isPrivate: boolean;
-
-  // REMOVED from here, as it's a UI preference.
-  // @Prop({ default: 'light' })
-  // theme: string;
 }
 
-@Schema({ _id: false }) // FIX: Disable auto _id for this subdocument
+@Schema({ _id: false })
 export class SecuritySettingsPreferences {
   @Prop({ default: false })
   enable2FA: boolean;
@@ -35,26 +29,29 @@ export class SecuritySettingsPreferences {
   recoveryMethod: string;
 }
 
-@Schema({ _id: false }) // FIX: Disable auto _id for this subdocument
+@Schema({ _id: false })
 export class AccessibilityOptionsPreferences {
   @Prop({ default: false })
   highContrastMode: boolean;
 
   @Prop({ default: false })
   screenReaderSupport: boolean;
+
+  // --- UPDATED: Expanded the enum for more font choices and set a new default ---
+  @Prop({ default: 'default', enum: ['default', 'serif', 'mono', 'inter'] })
+  font: 'default' | 'serif' | 'mono' | 'inter';
+
+  @Prop({ default: 'medium', enum: ['small', 'medium', 'large', 'xl'] })
+  textSize: 'small' | 'medium' | 'large' | 'xl';
 }
 
-@Schema({ _id: false }) // FIX: Disable auto _id for this subdocument
+@Schema({ _id: false })
 export class ContentPreferences {
-  // REMOVED from here to avoid duplication. The primary theme setting is now in UiCustomizationPreferences.
-  // @Prop({ default: 'light' })
-  // theme: string;
-
   @Prop({ type: [String], default: [] })
   interests: string[];
 }
 
-@Schema({ _id: false }) // FIX: Disable auto _id for this subdocument
+@Schema({ _id: false })
 export class UiCustomizationPreferences {
   @Prop({ default: 'list' })
   layout: string;
@@ -62,17 +59,13 @@ export class UiCustomizationPreferences {
   @Prop({ default: true })
   animationsEnabled: boolean;
 
-  // --- FIX START ---
-  // Added theme setting to UI customization, where it belongs.
-  @Prop({ default: 'system' })
+  @Prop({ default: 'system', enum: ['light', 'dark', 'system'] })
   theme: 'light' | 'dark' | 'system';
-  // --- FIX END ---
 }
 
 // --- Main Document Schema ---
-// This one keeps its _id, as it's the main document.
 @Schema({
-  timestamps: true, // Good practice to track creation/update times
+  timestamps: true,
 })
 export class Setting extends Document {
   @Prop({ required: true, unique: true })

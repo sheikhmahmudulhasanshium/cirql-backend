@@ -1,5 +1,3 @@
-// backend/src/settings/dto/create-setting.dto.ts
-
 import { ApiProperty } from '@nestjs/swagger';
 
 export class NotificationPreferencesDto {
@@ -13,18 +11,14 @@ export class NotificationPreferencesDto {
 export class AccountSettingsPreferencesDto {
   @ApiProperty({ example: true })
   isPrivate: boolean;
-
-  // REMOVED from here
-  // @ApiProperty({ example: 'dark' })
-  // theme: string;
 }
 
 export class SecuritySettingsPreferencesDto {
   @ApiProperty({ example: true })
   enable2FA: boolean;
 
-  @ApiProperty({ example: 'email' })
-  recoveryMethod: string;
+  @ApiProperty({ example: 'email', enum: ['email', 'phone'] })
+  recoveryMethod: 'email' | 'phone';
 }
 
 export class AccessibilityOptionsPreferencesDto {
@@ -33,28 +27,32 @@ export class AccessibilityOptionsPreferencesDto {
 
   @ApiProperty({ example: true })
   screenReaderSupport: boolean;
+
+  // --- UPDATED: Synced DTO with the new schema enum ---
+  @ApiProperty({
+    example: 'default',
+    enum: ['default', 'serif', 'mono', 'inter'],
+  })
+  font: 'default' | 'serif' | 'mono' | 'inter';
+
+  @ApiProperty({ example: 'medium', enum: ['small', 'medium', 'large', 'xl'] })
+  textSize: 'small' | 'medium' | 'large' | 'xl';
 }
 
 export class ContentPreferencesDto {
-  // REMOVED from here
-  // @ApiProperty({ example: 'light' })
-  // theme: string;
-
   @ApiProperty({ example: ['sports', 'tech'] })
   interests: string[];
 }
 
 export class UiCustomizationPreferencesDto {
-  @ApiProperty({ example: 'grid' })
-  layout: string;
+  @ApiProperty({ example: 'grid', enum: ['list', 'grid'] })
+  layout: 'list' | 'grid';
 
   @ApiProperty({ example: true })
   animationsEnabled: boolean;
 
-  // --- FIX START ---
   @ApiProperty({ example: 'system', enum: ['light', 'dark', 'system'] })
   theme: 'light' | 'dark' | 'system';
-  // --- FIX END ---
 }
 
 export class CreateSettingDto {
