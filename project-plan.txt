@@ -88,3 +88,70 @@ Backend's GOOGLE_CALLBACK_TO_BACKEND_URL is static for its environment (local or
 Frontend's finalRedirectUri (in state) is dynamic and tells the backend where the frontend client wants the final JWT redirect.
 Backend's ALLOWED_FRONTEND_ORIGINS acts as a security whitelist for that final JWT redirect, ensuring the backend only sends tokens to trusted frontend origins, regardless of what the state parameter claims. This list should contain both your production frontend origin and http://localhost:3000 in both backend environments to allow flexible testing.
 This setup achieves your goal: authentication can work "no matter what the environment is" (local FE to local BE, local FE to prod BE, prod FE to prod BE) because the system is designed to handle these different origin combinations through configuration and the dynamic state parameter.
+
+
+cirql-backend/
+├── .env                  // Your environment variables
+├── .eslintrc.js          // ESLint configuration
+├── .prettierrc           // Prettier code formatter configuration
+├── nest-cli.json         // NestJS CLI configuration
+├── package.json          // Project dependencies and scripts
+├── pnpm-lock.yaml        // PNPM lockfile
+├── tsconfig.build.json   // TypeScript config for building
+└── tsconfig.json         // Main TypeScript configuration
+└── src/
+    ├── main.ts               // Application entry point
+    |
+    ├── app.controller.ts     // Root controller
+    ├── app.service.ts        // Root service
+    ├── app.module.ts         // Root module of the application
+    |
+    ├── auth/
+    │   ├── decorators/
+    │   │   └── current-user.decorator.ts // Extracts user from request
+    │   ├── strategies/
+    │   │   ├── google.strategy.ts
+    │   │   └── jwt.strategy.ts
+    │   ├── auth.controller.ts
+    │   ├── auth.service.ts
+    │   └── auth.module.ts
+    |
+    ├── common/
+    │   └── pipes/
+    │       └── parse-object-id.pipe.ts // Validates MongoDB ObjectIds
+    |
+    ├── settings/             // Module for user settings (structure inferred)
+    │   ├── dto/
+    │   │   ├── create-setting.dto.ts
+    │   │   └── update-setting.dto.ts
+    │   ├── schemas/
+    │   │   └── setting.schema.ts
+    │   ├── settings.controller.ts
+    │   ├── settings.service.ts
+    │   └── settings.module.ts
+    |
+    ├── social/
+    │   ├── schemas/
+    │   │   ├── friend-request.schema.ts // Manages pending friend requests
+    │   │   ├── group.schema.ts          // Defines social groups
+    │   │   └── social-profile.schema.ts // Central hub for friends, followers, etc.
+    │   ├── followers.controller.ts
+    │   ├── followers.service.ts
+    │   ├── friends.controller.ts
+    │   ├── friends.service.ts
+    │   ├── groups.controller.ts
+    │   ├── groups.service.ts
+    │   ├── recommendations.controller.ts
+    │   ├── recommendations.service.ts
+    │   ├── social.controller.ts      // Handles blocking and general profile actions
+    │   ├── social.service.ts         // Manages the SocialProfile schema
+    │   └── social.module.ts          // The central hub that ties the social features together
+    |
+    └── users/
+        ├── dto/
+        │   └── update-user.dto.ts
+        ├── schemas/
+        │   └── user.schema.ts         // The core User model
+        ├── users.controller.ts
+        ├── users.service.ts
+        └── users.module.ts

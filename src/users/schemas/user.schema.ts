@@ -1,8 +1,8 @@
-// src/users/schemas/user.schema.ts
+// FILE: src/users/schemas/user.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'; // <--- MAKE SURE THIS IMPORT IS CORRECT
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export type UserDocument = User & Document & { _id: Types.ObjectId };
 
@@ -25,7 +25,6 @@ export class User {
   @Prop({ unique: true, required: false, sparse: true })
   email?: string;
 
-  // Password is not decorated with ApiProperty as it shouldn't be in API responses
   @Prop({ required: false })
   password?: string;
 
