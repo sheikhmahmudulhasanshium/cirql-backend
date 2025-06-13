@@ -89,26 +89,35 @@ Frontend's finalRedirectUri (in state) is dynamic and tells the backend where th
 Backend's ALLOWED_FRONTEND_ORIGINS acts as a security whitelist for that final JWT redirect, ensuring the backend only sends tokens to trusted frontend origins, regardless of what the state parameter claims. This list should contain both your production frontend origin and http://localhost:3000 in both backend environments to allow flexible testing.
 This setup achieves your goal: authentication can work "no matter what the environment is" (local FE to local BE, local FE to prod BE, prod FE to prod BE) because the system is designed to handle these different origin combinations through configuration and the dynamic state parameter.
 
-
 cirql-backend/
-├── .env                  // Your environment variables
-├── .eslintrc.js          // ESLint configuration
-├── .prettierrc           // Prettier code formatter configuration
-├── nest-cli.json         // NestJS CLI configuration
-├── package.json          // Project dependencies and scripts
-├── pnpm-lock.yaml        // PNPM lockfile
-├── tsconfig.build.json   // TypeScript config for building
-└── tsconfig.json         // Main TypeScript configuration
+├── .env                  
+├── .eslintrc.js          
+├── .prettierrc           
+├── nest-cli.json         
+├── package.json          
+├── pnpm-lock.yaml        
+├── tsconfig.build.json   
+└── tsconfig.json         
 └── src/
-    ├── main.ts               // Application entry point
+    ├── main.ts               
     |
-    ├── app.controller.ts     // Root controller
-    ├── app.service.ts        // Root service
-    ├── app.module.ts         // Root module of the application
+    ├── app.controller.ts     
+    ├── app.service.ts        
+    ├── app.module.ts         
+    |
+    ├── announcement/         // Assuming you renamed "announcement" to "announcements" directory
+    │   ├── dto/
+    │   │   ├── create-announcement.dto.ts
+    │   │   └── update-announcement.dto.ts
+    │   ├── schemas/
+    │   │   └── announcement.schema.ts
+    │   ├── announcement.controller.ts
+    │   ├── announcement.service.ts
+    │   └── announcement.module.ts
     |
     ├── auth/
     │   ├── decorators/
-    │   │   └── current-user.decorator.ts // Extracts user from request
+    │   │   └── current-user.decorator.ts
     │   ├── strategies/
     │   │   ├── google.strategy.ts
     │   │   └── jwt.strategy.ts
@@ -117,10 +126,14 @@ cirql-backend/
     │   └── auth.module.ts
     |
     ├── common/
+    │   ├── decorators/            // NEW DIRECTORY
+    │   │   └── admin-only.decorator.ts
+    │   ├── guards/                // NEW DIRECTORY
+    │   │   └── admin.guard.ts
     │   └── pipes/
-    │       └── parse-object-id.pipe.ts // Validates MongoDB ObjectIds
+    │       └── parse-object-id.pipe.ts
     |
-    ├── settings/             // Module for user settings (structure inferred)
+    ├── settings/
     │   ├── dto/
     │   │   ├── create-setting.dto.ts
     │   │   └── update-setting.dto.ts
@@ -132,9 +145,9 @@ cirql-backend/
     |
     ├── social/
     │   ├── schemas/
-    │   │   ├── friend-request.schema.ts // Manages pending friend requests
-    │   │   ├── group.schema.ts          // Defines social groups
-    │   │   └── social-profile.schema.ts // Central hub for friends, followers, etc.
+    │   │   ├── friend-request.schema.ts
+    │   │   ├── group.schema.ts
+    │   │   └── social-profile.schema.ts
     │   ├── followers.controller.ts
     │   ├── followers.service.ts
     │   ├── friends.controller.ts
@@ -143,15 +156,36 @@ cirql-backend/
     │   ├── groups.service.ts
     │   ├── recommendations.controller.ts
     │   ├── recommendations.service.ts
-    │   ├── social.controller.ts      // Handles blocking and general profile actions
-    │   ├── social.service.ts         // Manages the SocialProfile schema
-    │   └── social.module.ts          // The central hub that ties the social features together
+    │   ├── social.controller.ts
+    │   ├── social.service.ts
+    │   └── social.module.ts
     |
     └── users/
         ├── dto/
         │   └── update-user.dto.ts
         ├── schemas/
-        │   └── user.schema.ts         // The core User model
+        │   └── user.schema.ts
         ├── users.controller.ts
         ├── users.service.ts
         └── users.module.ts
+
+
+
+
+        {
+  "title": "CiRQL is Born! 🎉",
+  "content": "On May 15, 2025, CiRQL was created to help people connect meaningfully in private spaces. We're building a better way to stay connected with the people and topics that matter to you. Join us!",
+  "type": "Company News",  "visible": true,
+  "expirationDate": null,
+  "imageUrl": "https://raw.githubusercontent.com/sheikhmahmudulhasanshium/cirql-frontend/refs/heads/main/public/logo.png",
+  "linkUrl": "https://cirql.vercel.app/"
+}
+{
+  "title": "Backend is LIVE! 🚀",
+  "content": "Great news! The backend is now up and running and connected with the frontend. 🎉 Launched on May 28th, 2025! Check out the API at https://cirql-backend.vercel.app/api/. Exciting times ahead! 🥳",
+  "type": "Company News",
+  "visible": true,
+  "expirationDate": null,
+  "imageUrl": "https://raw.githubusercontent.com/sheikhmahmudulhasanshium/cirql-backend/refs/heads/main/public/logo.png",
+  "linkUrl": "https://cirql-backend.vercel.app/api/"
+}

@@ -11,6 +11,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { SettingsModule } from './settings/settings.module';
 import { SocialModule } from './social/social.module';
+import { AnnouncementsModule } from './announcement/announcement.module';
 
 // Define the structure of your expected environment variables
 interface EnvironmentVariables {
@@ -18,7 +19,7 @@ interface EnvironmentVariables {
   MONGODB_URI: string;
   JWT_SECRET: string;
   JWT_EXPIRATION_TIME: string;
-
+  ADMIN_LIST: string; // Add ADMIN_LIST to the interface
   // URLs
   FRONTEND_URL: string; // Fallback/default frontend URL
   BACKEND_URL: string; // This backend's own URL
@@ -38,7 +39,7 @@ const envValidationSchema = Joi.object<EnvironmentVariables, true>({
   MONGODB_URI: Joi.string().required(),
   JWT_SECRET: Joi.string().required(),
   JWT_EXPIRATION_TIME: Joi.string().default('3600s'),
-
+  ADMIN_LIST: Joi.string().required(), // Add validation for ADMIN_LIST
   // URLs
   FRONTEND_URL: Joi.string()
     .uri({ scheme: ['http', 'https'] })
@@ -93,6 +94,7 @@ const envValidationSchema = Joi.object<EnvironmentVariables, true>({
     AuthModule,
     SettingsModule,
     SocialModule,
+    AnnouncementsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
