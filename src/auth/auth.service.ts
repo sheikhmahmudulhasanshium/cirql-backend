@@ -2,29 +2,39 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
+  BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt'; // <--- IMPORT
-import { ConfigService } from '@nestjs/config'; // <--- IMPORT
-import { UsersService } from '../users/users.service'; // <--- IMPORT (Adjust path if needed)
-import { User, UserDocument } from '../users/schemas/user.schema'; // <--- IMPORT User & UserDocument (Adjust path)
-import { Types } from 'mongoose'; // <--- IMPORT
-import { ApiProperty } from '@nestjs/swagger';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { UsersService } from '../users/users.service';
+import { UserDocument } from '../users/schemas/user.schema';
+import { Role } from '../common/enums/role.enum';
+import { EmailService } from '../email/email.service';
+import {
+  PasswordResetToken,
+  PasswordResetToken as PasswordResetTokenDocument,
+} from './schemas/password-reset-token.schema';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
+import { EncryptionService } from './encryption.service';
+import { authenticator } from 'otplib';
+import * as qrcode from 'qrcode';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '../audit/schemas/audit-log.schema';
 
-// Ensure these are defined or imported if they live elsewhere
-export class SanitizedUser {
-  @ApiProperty({
-    type: String,
-    description: 'User ID (string representation of ObjectId)',
-  })
+export interface SanitizedUser {
   _id: Types.ObjectId;
-  @ApiProperty({ required: false, example: 'test@example.com' })
-  email?: string;
-  @ApiProperty({ required: false, example: 'John' })
-  firstName?: string;
-  @ApiProperty({ required: false, example: 'Doe' })
-  lastName?: string;
-  @ApiProperty({ required: false, example: 'http://example.com/picture.jpg' })
-  picture?: string;
+  email: string | undefined;
+  firstName: string | undefined;
+  lastName: string | undefined;
+  picture: string | undefined;
+  roles: Role[];
+  is2FAEnabled: boolean;
 }
 
 export interface AuthTokenResponse {
@@ -32,115 +42,280 @@ export interface AuthTokenResponse {
   user: SanitizedUser;
 }
 
+export interface PartialAuthTokenResponse {
+  accessToken: string;
+  isTwoFactorRequired: true;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
+    @InjectModel(PasswordResetToken.name)
+    private passwordResetTokenModel: Model<PasswordResetTokenDocument>,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService, // Often not directly needed if JWTModule is configured via ConfigService
+    private readonly emailService: EmailService,
+    private readonly encryptionService: EncryptionService,
+    private readonly auditService: AuditService,
+    private readonly configService: ConfigService,
   ) {}
+
+  login(user: UserDocument): AuthTokenResponse | PartialAuthTokenResponse {
+    if (user.is2FAEnabled) {
+      const payload = {
+        sub: user._id.toString(),
+        isTwoFactorAuthenticationComplete: false,
+      };
+      const accessToken = this.jwtService.sign(payload, { expiresIn: '5m' });
+      return { accessToken, isTwoFactorRequired: true };
+    }
+    return this.getFullAccessToken(user);
+  }
+
+  async loginWith2fa(user: UserDocument): Promise<AuthTokenResponse> {
+    await this.usersService.updateLastLogin(user._id);
+    return this.getFullAccessToken(user);
+  }
+
+  private getFullAccessToken(user: UserDocument): AuthTokenResponse {
+    const payload = {
+      email: user.email,
+      sub: user._id.toString(),
+      roles: user.roles,
+      isTwoFactorAuthenticationComplete: true,
+    };
+    const accessToken = this.jwtService.sign(payload);
+    const sanitizedUser: SanitizedUser = {
+      _id: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      picture: user.picture,
+      roles: user.roles,
+      is2FAEnabled: user.is2FAEnabled,
+    };
+    return { accessToken, user: sanitizedUser };
+  }
+
+  async generateTwoFactorSecret(user: UserDocument): Promise<{
+    secret: string;
+    otpAuthUrl: string;
+  }> {
+    if (!user.email) {
+      throw new BadRequestException(
+        'User email is required to generate a 2FA secret.',
+      );
+    }
+    const secret = authenticator.generateSecret();
+    const otpAuthUrl = authenticator.keyuri(user.email, 'Cirql', secret);
+    const encryptedSecret = this.encryptionService.encrypt(secret);
+    await this.usersService.setTwoFactorSecret(
+      user._id.toString(),
+      encryptedSecret,
+    );
+    return { secret, otpAuthUrl };
+  }
+
+  async generateQrCodeDataURL(otpAuthUrl: string): Promise<string> {
+    return qrcode.toDataURL(otpAuthUrl);
+  }
+
+  async isTwoFactorCodeValid(
+    twoFactorCode: string,
+    user: UserDocument,
+  ): Promise<boolean> {
+    if (!user.twoFactorAuthSecret) {
+      return false;
+    }
+    const decryptedSecret = this.encryptionService.decrypt(
+      user.twoFactorAuthSecret,
+    );
+    const isTotpValid = authenticator.verify({
+      token: twoFactorCode,
+      secret: decryptedSecret,
+    });
+    if (isTotpValid) {
+      return true;
+    }
+    if (
+      user.twoFactorAuthBackupCodes &&
+      user.twoFactorAuthBackupCodes.length > 0
+    ) {
+      const matchingCodeIndex = (
+        await Promise.all(
+          user.twoFactorAuthBackupCodes.map((hashedCode) =>
+            bcrypt.compare(twoFactorCode, hashedCode),
+          ),
+        )
+      ).findIndex((isMatch) => isMatch);
+
+      if (matchingCodeIndex !== -1) {
+        await this.usersService.invalidateBackupCode(
+          user._id,
+          matchingCodeIndex,
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async enableTwoFactorAuth(
+    requestingUser: UserDocument,
+    twoFactorCode: string,
+  ): Promise<{ backupCodes: string[] }> {
+    const user = await this.usersService.findByIdWith2FASecret(
+      requestingUser._id.toString(),
+    );
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+    if (user.is2FAEnabled) {
+      throw new BadRequestException('2FA is already enabled.');
+    }
+    if (!user.twoFactorAuthSecret) {
+      throw new BadRequestException(
+        '2FA secret not found. Please generate a new QR code and start over.',
+      );
+    }
+    const isCodeValid = await this.isTwoFactorCodeValid(twoFactorCode, user);
+    if (!isCodeValid) {
+      throw new BadRequestException('Invalid authentication code.');
+    }
+    const backupCodes = Array.from({ length: 10 }, () =>
+      crypto.randomBytes(4).toString('hex').toUpperCase(),
+    );
+    const hashedBackupCodes = await Promise.all(
+      backupCodes.map((code) => bcrypt.hash(code, 10)),
+    );
+    await this.usersService.enable2FA(user._id.toString(), hashedBackupCodes);
+    await this.auditService.createLog({
+      actor: user,
+      action: AuditAction.TFA_ENABLED,
+      targetId: user._id,
+      targetType: 'User',
+    });
+    return { backupCodes };
+  }
+
+  async disableTwoFactorAuth(
+    requestingUser: UserDocument,
+    twoFactorCode: string,
+  ): Promise<void> {
+    const user = await this.usersService.findByIdWith2FASecret(
+      requestingUser._id.toString(),
+    );
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+    if (!user.is2FAEnabled) {
+      throw new BadRequestException('2FA is not currently enabled.');
+    }
+    const isCodeValid = await this.isTwoFactorCodeValid(twoFactorCode, user);
+    if (!isCodeValid) {
+      throw new UnauthorizedException(
+        'Invalid authentication code. Cannot disable 2FA.',
+      );
+    }
+    await this.usersService.disable2FA(user._id.toString());
+    await this.auditService.createLog({
+      actor: user,
+      action: AuditAction.TFA_DISABLED,
+      targetId: user._id,
+      targetType: 'User',
+    });
+  }
+
+  async handleForgotPasswordRequest(email: string): Promise<void> {
+    const user = await this.usersService.findOneByEmail(email);
+    if (!user || user.googleId) {
+      this.logger.warn(
+        `Password reset requested for non-existent or OAuth user: ${email}. Responding with generic success to prevent enumeration.`,
+      );
+      return;
+    }
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = await bcrypt.hash(rawToken, 10);
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1);
+    await this.passwordResetTokenModel.create({
+      userId: user._id,
+      token: hashedToken,
+      expiresAt,
+    });
+    await this.emailService.sendPasswordResetEmail(email, rawToken);
+  }
+
+  async handleResetPassword(resetPasswordDto: ResetPasswordDto): Promise<void> {
+    const { token: rawToken, password } = resetPasswordDto;
+    const potentialTokens = await this.passwordResetTokenModel
+      .find({
+        expiresAt: { $gt: new Date() },
+      })
+      .populate('userId');
+    let validTokenDoc: PasswordResetTokenDocument | null = null;
+    for (const doc of potentialTokens) {
+      if (await bcrypt.compare(rawToken, doc.token)) {
+        validTokenDoc = doc;
+        break;
+      }
+    }
+    if (!validTokenDoc || !validTokenDoc.userId) {
+      throw new BadRequestException('Invalid or expired password reset token.');
+    }
+    const user = await this.usersService.findById(validTokenDoc.userId);
+    if (!user) {
+      throw new NotFoundException(
+        'User associated with this token no longer exists.',
+      );
+    }
+    user.password = password;
+    await user.save();
+    await this.passwordResetTokenModel.findByIdAndDelete(validTokenDoc._id);
+  }
 
   async validateOAuthLogin(
     googleId: string,
     email: string,
-    firstName: string | undefined, // These are now used
-    lastName: string | undefined, // These are now used
-    picture: string | undefined, // These are now used
+    firstName: string | undefined,
+    lastName: string | undefined,
+    picture: string | undefined,
   ): Promise<UserDocument> {
-    // Ensure UserDocument is the correct return type
-    this.logger.log(
-      `Validating OAuth login for email: ${email}, googleId: ${googleId}`,
-    );
+    this.logger.log(`Validating OAuth login for email: ${email}`);
     try {
-      let user: UserDocument | null =
-        await this.usersService.findOneByEmail(email);
-
+      let user = await this.usersService.findOneByEmail(email);
       if (user) {
-        this.logger.log(
-          `User found by email: ${email}. Updating Google ID and profile info if necessary.`,
-        );
-        if (!user.googleId) {
-          user.googleId = googleId;
-        }
+        if (!user.googleId) user.googleId = googleId;
         user.firstName = firstName || user.firstName;
         user.lastName = lastName || user.lastName;
         user.picture = picture || user.picture;
         return user.save();
-      } else {
-        user = await this.usersService.findOneByGoogleId(googleId);
-        if (user) {
-          this.logger.log(
-            `User found by googleId: ${googleId}. Updating email and profile info.`,
-          );
-          user.email = email;
-          user.firstName = firstName || user.firstName;
-          user.lastName = lastName || user.lastName;
-          user.picture = picture || user.picture;
-          return user.save();
-        } else {
-          this.logger.log(
-            `No existing user found. Creating new user for email: ${email}`,
-          );
-          // Ensure all necessary fields are passed for creation
-          const newUserDoc: UserDocument = await this.usersService.create({
-            googleId,
-            email,
-            firstName,
-            lastName,
-            picture,
-          });
-          return newUserDoc;
-        }
       }
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : 'Unknown error during OAuth validation';
-      const errorStack = err instanceof Error ? err.stack : undefined;
+      user = await this.usersService.findOneByGoogleId(googleId);
+      if (user) {
+        user.email = email;
+        user.firstName = firstName || user.firstName;
+        user.lastName = lastName || user.lastName;
+        user.picture = picture || user.picture;
+        return user.save();
+      }
+      this.logger.log(`Creating new user for email: ${email}`);
+      return this.usersService.create({
+        googleId,
+        email,
+        firstName,
+        lastName,
+        picture,
+      });
+    } catch (err: unknown) {
+      const error = err as Error;
       this.logger.error(
-        `Error in validateOAuthLogin for email ${email}: ${errorMessage}`,
-        errorStack,
+        `Error in validateOAuthLogin for ${email}`,
+        error.stack,
       );
       throw new InternalServerErrorException('Error processing OAuth login.');
     }
-  }
-
-  login(user: UserDocument): AuthTokenResponse {
-    // Ensure UserDocument and AuthTokenResponse are correctly typed/imported
-    if (!user || !user._id) {
-      this.logger.error(
-        'User object passed to login service is missing or missing _id:',
-        user ? user.toObject() : user, // Log plain object if possible
-      );
-      throw new InternalServerErrorException(
-        'Cannot generate token: User or User ID is missing.',
-      );
-    }
-
-    const payload = { email: user.email, sub: user._id.toString() };
-    this.logger.log(
-      `Generating JWT for user: ${user.email}, id: ${user._id.toString()}`,
-    );
-    const accessToken = this.jwtService.sign(payload);
-
-    // Ensure User (the class/interface) and Types are imported
-    const plainUserObject = user.toObject<User & { _id: Types.ObjectId }>();
-
-    // Ensure SanitizedUser is correctly typed/imported
-    const sanitizedUserOutput: SanitizedUser = {
-      _id: plainUserObject._id,
-      email: plainUserObject.email,
-      firstName: plainUserObject.firstName,
-      lastName: plainUserObject.lastName,
-      picture: plainUserObject.picture,
-    };
-
-    return {
-      accessToken,
-      user: sanitizedUserOutput,
-    };
   }
 }

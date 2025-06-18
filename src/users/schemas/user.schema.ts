@@ -1,8 +1,7 @@
-// FILE: src/users/schemas/user.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import * as bcrypt from 'bcrypt';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Role } from '../../common/enums/role.enum';
 
 export type UserDocument = User & Document & { _id: Types.ObjectId };
 
@@ -12,70 +11,74 @@ export type UserDocument = User & Document & { _id: Types.ObjectId };
   toObject: { virtuals: true },
 })
 export class User {
-  @ApiProperty({
-    type: String,
-    description: 'MongoDB ObjectId as string (virtual)',
-  })
-  id?: string;
+  @ApiProperty({ type: String, description: 'MongoDB ObjectId as a string' })
+  id: string;
 
-  @ApiPropertyOptional({
-    example: 'test@example.com',
-    description: 'User email (unique)',
-  })
-  @Prop({ unique: true, required: false, sparse: true })
+  @ApiPropertyOptional({ example: 'test@example.com' })
+  @Prop({ unique: true, required: false, sparse: true, lowercase: true })
   email?: string;
 
-  @Prop({ required: false })
+  @Prop({ required: false, select: false })
   password?: string;
 
-  @ApiPropertyOptional({ example: 'John', description: 'User first name' })
+  @ApiPropertyOptional({ example: 'John' })
   @Prop()
   firstName?: string;
 
-  @ApiPropertyOptional({ example: 'Doe', description: 'User last name' })
+  @ApiPropertyOptional({ example: 'Doe' })
   @Prop()
   lastName?: string;
 
-  @ApiPropertyOptional({
-    example: 'google|12345678901234567890',
-    description: 'Google OAuth ID (unique)',
-  })
+  @ApiPropertyOptional({ example: 'google|1234567890' })
   @Prop({ unique: true, sparse: true })
   googleId?: string;
 
-  @ApiPropertyOptional({
-    example: 'https://example.com/avatar.jpg',
-    description: 'URL to profile picture',
-  })
+  @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg' })
   @Prop()
   picture?: string;
 
-  @ApiPropertyOptional({
-    type: Date,
-    description: 'Timestamp of creation',
-    readOnly: true,
+  @ApiProperty({
+    description: 'User roles',
+    enum: Role,
+    isArray: true,
+    example: [Role.User],
   })
-  createdAt?: Date;
+  @Prop({ type: [String], enum: Role, default: [Role.User] })
+  roles: Role[];
+
+  @ApiProperty({ description: 'Indicates if 2FA is enabled' })
+  @Prop({ default: false })
+  is2FAEnabled: boolean;
+
+  @Prop({ required: false, select: false })
+  twoFactorAuthSecret?: string;
+
+  @Prop({ type: [String], required: false, select: false })
+  twoFactorAuthBackupCodes?: string[];
+
+  @ApiProperty({
+    description: 'Account status (e.g., active, inactive, banned)',
+  })
+  @Prop({ type: String, default: 'active' })
+  accountStatus: string;
 
   @ApiPropertyOptional({
     type: Date,
-    description: 'Timestamp of last update',
-    readOnly: true,
+    description: 'Timestamp of the last successful login',
+    nullable: true,
   })
+  @Prop({ type: Date, required: false, default: null })
+  lastLogin?: Date | null;
+
+  @ApiPropertyOptional({ type: Date, readOnly: true })
+  createdAt?: Date;
+
+  @ApiPropertyOptional({ type: Date, readOnly: true })
   updatedAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
-UserSchema.virtual('id').get(function () {
+UserSchema.virtual('id').get(function (this: UserDocument) {
   return this._id.toHexString();
-});
-
-UserSchema.pre<UserDocument>('save', async function (next) {
-  if (this.isModified('password') && this.password) {
-    const saltRounds = 10;
-    const salt = await bcrypt.genSalt(saltRounds);
-    this.password = await bcrypt.hash(this.password, salt);
-  }
-  next();
 });

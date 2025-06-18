@@ -4,7 +4,6 @@ import {
   Injectable,
   ArgumentMetadata,
   BadRequestException,
-  Logger,
 } from '@nestjs/common';
 import { Types } from 'mongoose';
 
@@ -12,17 +11,11 @@ import { Types } from 'mongoose';
 export class ParseObjectIdPipe
   implements PipeTransform<string, Types.ObjectId>
 {
-  private readonly logger = new Logger(ParseObjectIdPipe.name); // Using logger to "use" _metadata
-
-  transform(value: string, _metadata: ArgumentMetadata): Types.ObjectId {
-    // "Using" _metadata via the logger to satisfy ESLint's no-unused-vars
-    // This assumes _metadata and _metadata.type are valid; in NestJS pipes, they generally are.
-    this.logger.debug(
-      `Pipe metadata type: ${_metadata.type}, transforming value: ${value}`,
-    );
-
+  transform(value: string, metadata: ArgumentMetadata): Types.ObjectId {
     if (!Types.ObjectId.isValid(value)) {
-      throw new BadRequestException(`Invalid MongoDB ObjectId: ${value}`);
+      throw new BadRequestException(
+        `Invalid MongoDB ObjectId: "${value}" for parameter "${metadata.data}"`,
+      );
     }
     return new Types.ObjectId(value);
   }

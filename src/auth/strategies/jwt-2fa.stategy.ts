@@ -8,17 +8,14 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../../users/users.service';
 import { UserDocument } from '../../users/schemas/user.schema';
-import { Role } from '../../common/enums/role.enum';
 
-export interface JwtPayload {
+export interface Jwt2faPayload {
   sub: string;
-  email: string;
-  roles: Role[];
-  isTwoFactorAuthenticationComplete: true;
+  isTwoFactorAuthenticationComplete: false;
 }
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
+export class Jwt2faStrategy extends PassportStrategy(Strategy, 'jwt-2fa') {
   constructor(
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
@@ -34,14 +31,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: jwtSecret,
-      passReqToCallback: false,
     });
   }
 
-  async validate(payload: JwtPayload): Promise<UserDocument> {
-    if (!payload.isTwoFactorAuthenticationComplete) {
+  async validate(payload: Jwt2faPayload): Promise<UserDocument> {
+    if (payload.isTwoFactorAuthenticationComplete) {
       throw new UnauthorizedException(
-        'Two-factor authentication has not been completed.',
+        'This token is not valid for 2FA verification.',
       );
     }
 
@@ -49,6 +45,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (!user) {
       throw new UnauthorizedException('User not found or token is invalid.');
     }
+
+    if (!user.is2FAEnabled) {
+      throw new UnauthorizedException('2FA is not enabled for this user.');
+    }
+
     return user;
   }
 }

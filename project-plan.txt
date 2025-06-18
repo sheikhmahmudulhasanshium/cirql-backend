@@ -92,85 +92,84 @@ This setup achieves your goal: authentication can work "no matter what the envir
 cirql-backend/
 ├── .env                  
 ├── .eslintrc.js          
+├── .gitignore
 ├── .prettierrc           
+├── eslint.config.mjs       
 ├── nest-cli.json         
 ├── package.json          
 ├── pnpm-lock.yaml        
+├── project-plan.txt     
+├── README.md    
 ├── tsconfig.build.json   
 └── tsconfig.json         
-└── src/
-    ├── main.ts               
-    |
-    ├── app.controller.ts     
-    ├── app.service.ts        
-    ├── app.module.ts         
-    |
-    ├── announcement/         // Assuming you renamed "announcement" to "announcements" directory
-    │   ├── dto/
-    │   │   ├── create-announcement.dto.ts
-    │   │   └── update-announcement.dto.ts
-    │   ├── schemas/
-    │   │   └── announcement.schema.ts
-    │   ├── announcement.controller.ts
-    │   ├── announcement.service.ts
-    │   └── announcement.module.ts
-    |
-    ├── auth/
-    │   ├── decorators/
-    │   │   └── current-user.decorator.ts
-    │   ├── strategies/
-    │   │   ├── google.strategy.ts
-    │   │   └── jwt.strategy.ts
-    │   ├── auth.controller.ts
-    │   ├── auth.service.ts
-    │   └── auth.module.ts
-    |
-    ├── common/
-    │   ├── decorators/            // NEW DIRECTORY
-    │   │   └── admin-only.decorator.ts
-    │   ├── guards/                // NEW DIRECTORY
-    │   │   └── admin.guard.ts
-    │   └── pipes/
-    │       └── parse-object-id.pipe.ts
-    |
-    ├── settings/
-    │   ├── dto/
-    │   │   ├── create-setting.dto.ts
-    │   │   └── update-setting.dto.ts
-    │   ├── schemas/
-    │   │   └── setting.schema.ts
-    │   ├── settings.controller.ts
-    │   ├── settings.service.ts
-    │   └── settings.module.ts
-    |
-    ├── social/
-    │   ├── schemas/
-    │   │   ├── friend-request.schema.ts
-    │   │   ├── group.schema.ts
-    │   │   └── social-profile.schema.ts
-    │   ├── followers.controller.ts
-    │   ├── followers.service.ts
-    │   ├── friends.controller.ts
-    │   ├── friends.service.ts
-    │   ├── groups.controller.ts
-    │   ├── groups.service.ts
-    │   ├── recommendations.controller.ts
-    │   ├── recommendations.service.ts
-    │   ├── social.controller.ts
-    │   ├── social.service.ts
-    │   └── social.module.ts
-    |
-    └── users/
-        ├── dto/
-        │   └── update-user.dto.ts
-        ├── schemas/
-        │   └── user.schema.ts
-        ├── users.controller.ts
-        ├── users.service.ts
-        └── users.module.ts
-
-
-
+└── vercel.json
+├── src/
+│   ├── main.ts               
+│   ├── app.controller.ts     
+│   ├── app.service.ts        
+│   ├── app.module.ts
+│   ├── announcement/         
+│   │   ├── dto/
+│   │   │   ├── create-announcement.dto.ts
+│   │   │   └── update-announcement.dto.ts
+│   │   ├── schemas/
+│   │   │   └── announcement.schema.ts
+│   │   ├── announcement.controller.ts
+│   │   ├── announcement.service.ts
+│   │   └── announcement.module.ts
+│   ├── auth/
+│   │   ├── decorators/
+│   │   │   └── current-user.decorator.ts
+│   │   ├── strategies/
+│   │   │   ├── google.strategy.ts
+│   │   │   └── jwt.strategy.ts
+│   │   ├── auth.controller.ts
+│   │   ├── auth.service.ts
+│   │   └── auth.module.ts
+│   ├── common/
+│   │   ├── decorators/            
+│   │   │   └── admin-only.decorator.ts
+│   │   ├── guards/                
+│   │   │   └── admin.guard.ts
+│   │   └── pipes/
+│   │       └── parse-object-id.pipe.ts
+│   ├── settings/
+│   │   ├── dto/
+│   │   │   ├── create-setting.dto.ts
+│   │   │   └── update-setting.dto.ts
+│   │   ├── schemas/
+│   │   │   └── setting.schema.ts
+│   │   ├── settings.controller.ts
+│   │   ├── settings.service.ts
+│   │   └── settings.module.ts
+│   ├── social/
+│   │   ├── schemas/
+│   │   │   ├── friend-request.schema.ts
+│   │   │   ├── group.schema.ts
+│   │   │   └── social-profile.schema.ts
+│   │   ├── followers.controller.ts
+│   │   ├── followers.service.ts
+│   │   ├── friends.controller.ts
+│   │   ├── friends.service.ts
+│   │   ├── groups.controller.ts
+│   │   ├── groups.service.ts
+│   │   ├── recommendations.controller.ts
+│   │   ├── recommendations.service.ts
+│   │   ├── social.controller.ts
+│   │   ├── social.service.ts
+│   │   └── social.module.ts
+│   └── users/
+│       ├── dto/
+│       │   └── update-user.dto.ts
+│       ├── schemas/
+│       │   └── user.schema.ts
+│       ├── users.controller.ts
+│       ├── users.service.ts
+│       └── users.module.ts
+├── dist/ 
+├── node_modules/ 
+├── public/ 
+└── test/    
 
         {
   "title": "CiRQL is Born! 🎉",
@@ -189,3 +188,194 @@ cirql-backend/
   "imageUrl": "https://raw.githubusercontent.com/sheikhmahmudulhasanshium/cirql-backend/refs/heads/main/public/logo.png",
   "linkUrl": "https://cirql-backend.vercel.app/api/"
 }
+
+//prompt
+Let's continue our discussion about the ideal user management system we were designing. To recap, we discussed implementing a granular RBAC system (user, admin, owner, etc.) with specific permissions, enforcing unique user identification (internal ID, email), adding MFA, and improving security measures (rate limiting, audit logs, etc.). We also defined the data structure and an example API response for a `getAll` users endpoint with filtering, pagination, and error handling.
+
+My specific question/topic for today is: [Insert your specific question or topic here]. For example: "How should we handle password resets?" or "Can we discuss the best approach for implementing audit logging?" or "What are some options for the frontend to handle the paginated `getAll` API response?"
+
+//current data getAll
+[
+  {
+    "_id": "68373bb20386e48d16144d6d",
+    "email": "officials.shium@gmail.com",
+    "firstName": "Sheikh Mahmudul Hasan",
+    "lastName": "Shium",
+    "googleId": "104840201035956112465",
+    "picture": "https://lh3.googleusercontent.com/a/ACg8ocJRqt6KW8uwv_1QeBDBSLkDMBZNAl_-7EEtP3i_L65VIeetaq8=s96-c",
+    "createdAt": "2025-05-28T16:37:06.828Z",
+    "updatedAt": "2025-06-15T06:02:55.971Z",
+    "__v": 0,
+    "accountStatus": "active",
+    "role": "admin",
+    "id": "68373bb20386e48d16144d6d"
+  },
+  {
+    "_id": "68377756edbb4d47472fa4a1",
+    "email": "sheikh.mahmudul.hasan.shium.aiub@gmail.com",
+    "firstName": "Sheikh Mahmudul Hasan",
+    "lastName": "Shium",
+    "googleId": "104804616637310003292",
+    "picture": "https://lh3.googleusercontent.com/a/ACg8ocLImafbhVF7QnTNyr4bSE4BZArg8t7Fg-_tHcMViV1fffINAMg=s96-c",
+    "createdAt": "2025-05-28T20:51:34.556Z",
+    "updatedAt": "2025-06-15T06:02:58.013Z",
+    "__v": 0,
+    "accountStatus": "active",
+    "role": "admin",
+    "id": "68377756edbb4d47472fa4a1"
+  },
+  {
+    "_id": "68470e79a5ec9905a77ebb09",
+    "email": "shanjidasaima2020@gmail.com",
+    "firstName": "Shanjida",
+    "lastName": "Saima",
+    "googleId": "109065821932479661428",
+    "picture": "https://lh3.googleusercontent.com/a/ACg8ocJEIQ6gi3zz8jTdcp_DUi9A1tuRZ2m_xcRvYyHNdWl7G_73mQ=s96-c",
+    "createdAt": "2025-06-09T16:40:25.053Z",
+    "updatedAt": "2025-06-09T16:40:25.053Z",
+    "__v": 0,
+    "accountStatus": "active",
+    "role": "user",
+    "id": "68470e79a5ec9905a77ebb09"
+  },
+  {
+    "_id": "684d765e12e2d6b55490dd63",
+    "email": "sheikhmahmudulhasanshium2000@gmail.com",
+    "firstName": "Sheikh Mahmudul Hasan Shium",
+    "lastName": "Shium",
+    "googleId": "114596070347235844275",
+    "picture": "https://lh3.googleusercontent.com/a/ACg8ocIccSN1Ym79aDziPMDzab315am2CTrxH1A3S5XsDOfmy7Rgt3w=s96-c",
+    "createdAt": "2025-06-14T13:17:18.168Z",
+    "updatedAt": "2025-06-14T13:17:18.168Z",
+    "__v": 0,
+    "accountStatus": "active",
+    "role": "user",
+    "id": "684d765e12e2d6b55490dd63"
+  }
+]
+//ideal userdata getAll
+{
+  "success": true, // Indicate success/failure explicitly
+  "data": [
+    {
+      "_id": "68373bb20386e48d16144d6d",
+      "email": "officials.shium@gmail.com",
+      "firstName": "Sheikh Mahmudul Hasan",
+      "lastName": "Shium",
+      "accountStatus": "active",
+      "roles": ["owner", "admin"],
+      "lastLogin": "2025-06-16T10:00:00.000Z" // Example,
+    },
+    {
+      "_id": "68377756edbb4d47472fa4a1",
+      "email": "sheikh.mahmudul.hasan.shium.aiub@gmail.com",
+      "firstName": "Sheikh Mahmudul Hasan",
+      "lastName": "Shium",
+      "accountStatus": "active",
+      "roles": ["admin"],
+      "lastLogin": "2025-06-15T18:30:00.000Z"
+    },
+    {
+      "_id": "68470e79a5ec9905a77ebb09",
+      "email": "shanjidasaima2020@gmail.com",
+      "firstName": "Shanjida",
+      "lastName": "Saima",
+      "accountStatus": "active",
+      "roles": ["user"],
+      "lastLogin": "2025-06-16T08:00:00.000Z"
+    },
+    {
+      "_id": "684d765e12e2d6b55490dd63",
+      "email": "sheikhmahmudulhasanshium2000@gmail.com",
+      "firstName": "Sheikh Mahmudul Hasan Shium",
+      "lastName": "Shium",
+      "accountStatus": "active",
+      "roles": ["user"],
+      "lastLogin": null // Example: User hasn't logged in yet
+    }
+  ],
+  "pagination": { // Pagination metadata
+    "totalItems": 4,  // Total number of users (before pagination)
+    "currentPage": 1, // Current page number
+    "pageSize": 10,  // Number of items per page (example)
+    "totalPages": 1   // Total number of pages
+  }
+}
+
+//with 2fa
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "68373bb20386e48d16144d6d",
+      "email": "officials.shium@gmail.com",
+      "firstName": "Sheikh Mahmudul Hasan",
+      "lastName": "Shium",
+      "accountStatus": "active",
+      "roles": ["owner", "admin"],
+      "lastLogin": "2025-06-16T10:00:00.000Z",
+      "is2FAEnabled": true // Added: Indicates if 2FA is enabled
+    },
+    {
+      "_id": "68377756edbb4d47472fa4a1",
+      "email": "sheikh.mahmudul.hasan.shium.aiub@gmail.com",
+      "firstName": "Sheikh Mahmudul Hasan",
+      "lastName": "Shium",
+      "accountStatus": "active",
+      "roles": ["admin"],
+      "lastLogin": "2025-06-15T18:30:00.000Z",
+      "is2FAEnabled": false // Added
+    },
+    {
+      "_id": "68470e79a5ec9905a77ebb09",
+      "email": "shanjidasaima2020@gmail.com",
+      "firstName": "Shanjida",
+      "lastName": "Saima",
+      "accountStatus": "active",
+      "roles": ["user"],
+      "lastLogin": "2025-06-16T08:00:00.000Z",
+      "is2FAEnabled": true // Added
+    },
+    {
+      "_id": "684d765e12e2d6b55490dd63",
+      "email": "sheikhmahmudulhasanshium2000@gmail.com",
+      "firstName": "Sheikh Mahmudul Hasan Shium",
+      "lastName": "Shium",
+      "accountStatus": "active",
+      "roles": ["user"],
+      "lastLogin": null,
+      "is2FAEnabled": false // Added
+    }
+  ],
+  "pagination": {
+    "totalItems": 4,
+    "currentPage": 1,
+    "pageSize": 10,
+    "totalPages": 1
+  }
+}
+//entry data
+{
+  "_id": "68373bb20386e48d16144d6d",
+  "email": "officials.shium@gmail.com",
+  "firstName": "Sheikh Mahmudul Hasan",
+  "lastName": "Shium",
+  "accountStatus": "active",
+  "roles": ["owner", "admin"],
+  "lastLogin": "2025-06-16T10:00:00.000Z",
+  "is2FAEnabled": true,
+  "twoFAMethod": "authenticatorApp",
+  "twoFASecret": "ENCRYPTED_SECRET_KEY", // Important: Encrypted!
+  "backupCodes": ["ENCRYPTED_CODE1", "ENCRYPTED_CODE2"] // Important: Encrypted!
+}
+
+AE915FED
+A1AB81A0
+D0C1E593
+61E68389
+E0BB9E6E
+549B2035
+5088AC64
+3EB47C3E
+09DE2B23
+8C3F053E

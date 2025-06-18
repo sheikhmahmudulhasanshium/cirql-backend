@@ -3,8 +3,6 @@ import { Document } from 'mongoose';
 
 export type SettingDocument = Setting & Document;
 
-// --- Sub-Schemas with _id disabled ---
-
 @Schema({ _id: false })
 export class NotificationPreferences {
   @Prop({ default: true })
@@ -22,9 +20,6 @@ export class AccountSettingsPreferences {
 
 @Schema({ _id: false })
 export class SecuritySettingsPreferences {
-  @Prop({ default: false })
-  enable2FA: boolean;
-
   @Prop({ default: 'email' })
   recoveryMethod: string;
 }
@@ -37,7 +32,6 @@ export class AccessibilityOptionsPreferences {
   @Prop({ default: false })
   screenReaderSupport: boolean;
 
-  // --- UPDATED: Expanded the enum for more font choices and set a new default ---
   @Prop({ default: 'default', enum: ['default', 'serif', 'mono', 'inter'] })
   font: 'default' | 'serif' | 'mono' | 'inter';
 
@@ -63,7 +57,6 @@ export class UiCustomizationPreferences {
   theme: 'light' | 'dark' | 'system';
 }
 
-// --- Main Document Schema ---
 @Schema({
   timestamps: true,
 })

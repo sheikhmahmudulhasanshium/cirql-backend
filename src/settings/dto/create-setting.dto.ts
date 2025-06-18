@@ -14,9 +14,6 @@ export class AccountSettingsPreferencesDto {
 }
 
 export class SecuritySettingsPreferencesDto {
-  @ApiProperty({ example: true })
-  enable2FA: boolean;
-
   @ApiProperty({ example: 'email', enum: ['email', 'phone'] })
   recoveryMethod: 'email' | 'phone';
 }
@@ -28,7 +25,6 @@ export class AccessibilityOptionsPreferencesDto {
   @ApiProperty({ example: true })
   screenReaderSupport: boolean;
 
-  // --- UPDATED: Synced DTO with the new schema enum ---
   @ApiProperty({
     example: 'default',
     enum: ['default', 'serif', 'mono', 'inter'],
