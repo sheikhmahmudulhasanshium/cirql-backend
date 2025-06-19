@@ -41,7 +41,8 @@ export class Jwt2faStrategy extends PassportStrategy(Strategy, 'jwt-2fa') {
       );
     }
 
-    const user = await this.usersService.findById(payload.sub);
+    const user = await this.usersService.findByIdWith2FASecret(payload.sub);
+
     if (!user) {
       throw new UnauthorizedException('User not found or token is invalid.');
     }

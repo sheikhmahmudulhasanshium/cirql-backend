@@ -368,14 +368,3 @@ My specific question/topic for today is: [Insert your specific question or topic
   "twoFASecret": "ENCRYPTED_SECRET_KEY", // Important: Encrypted!
   "backupCodes": ["ENCRYPTED_CODE1", "ENCRYPTED_CODE2"] // Important: Encrypted!
 }
-
-AE915FED
-A1AB81A0
-D0C1E593
-61E68389
-E0BB9E6E
-549B2035
-5088AC64
-3EB47C3E
-09DE2B23
-8C3F053E

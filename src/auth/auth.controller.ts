@@ -142,7 +142,6 @@ export class AuthController {
   ) {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     let defaultSuccessUrl = `${frontendUrl}/auth/google/callback`;
-    // --- THIS IS THE FIX ---
     const default2faUrl = `${frontendUrl}/log-in/verify-2fa`;
     const state = req.query.state as string | undefined;
     if (state) {

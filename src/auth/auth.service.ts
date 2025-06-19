@@ -126,9 +126,12 @@ export class AuthService {
     twoFactorCode: string,
     user: UserDocument,
   ): Promise<boolean> {
+    this.logger.debug(`Validating 2FA code for user ${user.id}`);
     if (!user.twoFactorAuthSecret) {
+      this.logger.warn(`User ${user.id} has no 2FA secret for validation.`);
       return false;
     }
+
     const decryptedSecret = this.encryptionService.decrypt(
       user.twoFactorAuthSecret,
     );
@@ -136,29 +139,34 @@ export class AuthService {
       token: twoFactorCode,
       secret: decryptedSecret,
     });
+
     if (isTotpValid) {
+      this.logger.log(`User ${user.id} provided a valid TOTP code.`);
       return true;
     }
+    this.logger.debug(
+      `User ${user.id} provided an invalid TOTP code. Checking backup codes...`,
+    );
+
     if (
       user.twoFactorAuthBackupCodes &&
       user.twoFactorAuthBackupCodes.length > 0
     ) {
-      const matchingCodeIndex = (
-        await Promise.all(
-          user.twoFactorAuthBackupCodes.map((hashedCode) =>
-            bcrypt.compare(twoFactorCode, hashedCode),
-          ),
-        )
-      ).findIndex((isMatch) => isMatch);
-
-      if (matchingCodeIndex !== -1) {
-        await this.usersService.invalidateBackupCode(
-          user._id,
-          matchingCodeIndex,
-        );
-        return true;
+      for (let i = 0; i < user.twoFactorAuthBackupCodes.length; i++) {
+        const hashedCode = user.twoFactorAuthBackupCodes[i];
+        if (await bcrypt.compare(twoFactorCode, hashedCode)) {
+          this.logger.log(
+            `User ${user.id} provided a valid backup code. Invalidating it now.`,
+          );
+          await this.usersService.invalidateBackupCode(user._id, i);
+          return true;
+        }
       }
     }
+
+    this.logger.warn(
+      `All validation failed for user ${user.id}. Code is invalid.`,
+    );
     return false;
   }
 
@@ -187,6 +195,7 @@ export class AuthService {
     const backupCodes = Array.from({ length: 10 }, () =>
       crypto.randomBytes(4).toString('hex').toUpperCase(),
     );
+    this.logger.log(`Generating and hashing backup codes for user ${user.id}`);
     const hashedBackupCodes = await Promise.all(
       backupCodes.map((code) => bcrypt.hash(code, 10)),
     );
