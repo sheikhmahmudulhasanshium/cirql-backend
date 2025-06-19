@@ -7,10 +7,11 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Error } from 'mongoose'; // Import Error from mongoose and remove Types
+import { Model, Error, FilterQuery } from 'mongoose'; // <-- Import FilterQuery
 import {
   Announcement,
   AnnouncementDocument,
+  AnnouncementType, // <-- Import AnnouncementType
 } from './entities/announcement.entity';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
@@ -21,9 +22,10 @@ export class AnnouncementsService {
   private readonly adminList: string[];
   private readonly logger = new Logger(AnnouncementsService.name);
 
+  // ... (no changes to constructor or helper methods)
   private getAdminListConfig(): string {
     const adminListString = this.configService.get<string>('ADMIN_LIST');
-    return adminListString ?? '[]'; // Default to an empty JSON array string
+    return adminListString ?? '[]';
   }
 
   constructor(
@@ -33,7 +35,6 @@ export class AnnouncementsService {
   ) {
     const safeAdminListString = this.getAdminListConfig();
     this.adminList = this.parseAdminList(safeAdminListString);
-
     this.logger.debug(
       `Initialized with admin list: ${JSON.stringify(this.adminList)}`,
     );
@@ -41,18 +42,16 @@ export class AnnouncementsService {
 
   private parseAdminList(adminListString: string): string[] {
     try {
-      const parsed = JSON.parse(adminListString) as unknown; // Type as unknown first
+      const parsed = JSON.parse(adminListString) as unknown;
       if (!Array.isArray(parsed)) {
         this.logger.error(
           'ADMIN_LIST is not a valid JSON array. No users will be considered admins.',
         );
         return [];
       }
-
       const stringArray: string[] = parsed.filter(
         (item): item is string => typeof item === 'string',
       );
-
       if (stringArray.length < parsed.length) {
         this.logger.warn(
           'ADMIN_LIST contains non-string values. Ignoring non-string values.',
@@ -73,6 +72,7 @@ export class AnnouncementsService {
     return this.adminList.includes(userId);
   }
 
+  // ... (no changes to create, findAllSimple)
   async create(
     createAnnouncementDto: CreateAnnouncementDto,
     userId: string,
@@ -92,7 +92,7 @@ export class AnnouncementsService {
     this.logger.log(`Announcement created by admin ${userId}`);
     return createdAnnouncement.save();
   }
-  // New method for simple get without filters (for testing)
+
   async findAllSimple(): Promise<Announcement[]> {
     try {
       const announcements = await this.announcementModel.find().exec();
@@ -110,26 +110,45 @@ export class AnnouncementsService {
       );
     }
   }
-
+  // *** LINTER FIXES APPLIED HERE ***
   async findAll(
     type?: string,
     page: number = 1,
     limit: number = 10,
-    visible: boolean = true,
+    visible?: boolean,
   ): Promise<{ data: Announcement[]; total: number }> {
     const skip = (page - 1) * limit;
-    const filter = { ...(type ? { type } : {}), visible };
+
+    // Use Mongoose's `FilterQuery` for type safety instead of `any`.
+    const filter: FilterQuery<AnnouncementDocument> = {};
+
+    if (type) {
+      // The `as AnnouncementType` cast might be needed if `type` is just a string
+      // to satisfy the schema's enum type.
+      filter.type = type as AnnouncementType;
+    }
+
+    if (visible !== undefined) {
+      filter.visible = visible;
+    }
+
     const data = await this.announcementModel
-      .find(filter)
+      .find(filter) // `filter` is now a strongly typed object
+      .sort({ createdAt: 'desc' })
       .skip(skip)
       .limit(limit)
-      .sort({ createdAt: 'desc' })
       .exec();
-    const total = await this.announcementModel.countDocuments(filter).exec();
-    this.logger.log(`Found ${data.length} announcements (total: ${total})`);
+
+    const total = await this.announcementModel.countDocuments(filter).exec(); // Also strongly typed
+    this.logger.log(
+      `Found ${data.length} announcements with filter ${JSON.stringify(
+        filter,
+      )} (total: ${total})`,
+    );
     return { data, total };
   }
 
+  // ... (no changes to findOne, update, or remove)
   async findOne(id: string): Promise<Announcement> {
     try {
       const announcement = await this.announcementModel.findById(id).exec();
@@ -197,7 +216,6 @@ export class AnnouncementsService {
       }
 
       if (userId && !this.isAdmin(userId)) {
-        // Check admin status for this user
         this.logger.warn(
           `User ${userId} attempted to delete announcement ${id} without admin privileges.`,
         );

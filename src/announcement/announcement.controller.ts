@@ -1,4 +1,3 @@
-// src/announcement/announcement.controller.ts
 import {
   Controller,
   Get,
@@ -16,6 +15,7 @@ import {
   Req,
   HttpCode,
   HttpStatus,
+  ParseBoolPipe, // <-- Import ParseBoolPipe
 } from '@nestjs/common';
 import { AnnouncementsService } from './announcement.service';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
@@ -23,7 +23,7 @@ import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Request as ExpressRequest } from 'express';
-import { UserDocument } from 'src/users/schemas/user.schema'; // Assuming you have a UserDocument
+import { UserDocument } from 'src/users/schemas/user.schema';
 
 interface AuthenticatedRequest extends ExpressRequest {
   user: UserDocument;
@@ -34,6 +34,7 @@ interface AuthenticatedRequest extends ExpressRequest {
 export class AnnouncementsController {
   constructor(private readonly announcementsService: AnnouncementsService) {}
 
+  // No changes to Post
   @Post()
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
@@ -45,30 +46,36 @@ export class AnnouncementsController {
     const userId = req.user._id.toString();
     return this.announcementsService.create(createAnnouncementDto, userId);
   }
-  // New route for simple get without filter with auth
+
+  // No changes to simple gets
   @Get('simple')
-  @UseGuards(AuthGuard('jwt')) // Protect this route with JWT auth
+  @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   findAllSimpleAuth(): Promise<any> {
     return this.announcementsService.findAllSimple();
   }
 
-  // New route for simple get without filter (no auth)
   @Get('simple/public')
   findAllSimplePublic(): Promise<any> {
     return this.announcementsService.findAllSimple();
   }
 
+  // *** MAJOR CHANGE HERE ***
+  // This single endpoint now handles both public and admin views.
+  // It does NOT require auth, as public users need access.
+  // The service layer handles what data is returned.
   @Get()
   findAll(
     @Query('type') type?: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
-    @Query('visible', new DefaultValuePipe(true)) visible: boolean = true,
+    // This allows the 'visible' param to be 'true', 'false', or absent (undefined)
+    @Query('visible', new ParseBoolPipe({ optional: true })) visible?: boolean,
   ) {
     return this.announcementsService.findAll(type, page, limit, visible);
   }
 
+  // No changes to findOne, Patch, or Delete
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.announcementsService.findOne(id);
@@ -89,10 +96,9 @@ export class AnnouncementsController {
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @HttpCode(HttpStatus.NO_CONTENT) // Return 204 No Content on successful deletion
+  @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    // Inject request
-    const userId = req.user._id.toString(); // Extract userId if needed
-    await this.announcementsService.remove(id, userId); // Pass userId for admin check
+    const userId = req.user._id.toString();
+    await this.announcementsService.remove(id, userId);
   }
 }
