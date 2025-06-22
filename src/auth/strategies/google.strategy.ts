@@ -7,20 +7,11 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import {
-  Strategy,
-  VerifyCallback,
-  Profile as GoogleProfile,
-} from 'passport-google-oauth20';
+import { Strategy, Profile as GoogleProfile } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
 import { UserDocument } from '../../users/schemas/user.schema';
-import { OAuth2Client, TokenPayload } from 'google-auth-library';
-
-// This type helps us define the structure of the params object from the callback
-type GoogleOAuth2Params = {
-  id_token: string;
-};
+import { OAuth2Client } from 'google-auth-library';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
@@ -55,63 +46,52 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
 
   async validate(
     accessToken: string,
-    refreshToken: string,
-    params: GoogleOAuth2Params,
-    profile: GoogleProfile,
-    done: VerifyCallback,
-  ): Promise<void> {
-    // --- FIX: The eslint-disable comment has been removed ---
-    const idToken = params.id_token;
 
-    if (!idToken) {
-      return done(
-        new UnauthorizedException(
-          'Google authentication failed: ID token not found.',
-        ),
-        false,
-      );
-    }
+    refreshToken: string, // Often unused but required by the signature
+    profile: GoogleProfile,
+  ): Promise<UserDocument> {
+    this.logger.debug(`Validating Google profile for: ${profile.displayName}`);
 
     try {
-      const ticket = await this.googleClient.verifyIdToken({
-        idToken: idToken,
-        audience: this.configService.get<string>('GOOGLE_CLIENT_ID'),
-      });
+      // Use the accessToken to get token info from Google. This is a robust
+      // server-to-server check that validates the token's authenticity.
+      const tokenInfo = await this.googleClient.getTokenInfo(accessToken);
 
-      if (ticket) {
-        const payload: TokenPayload | undefined = ticket.getPayload();
+      // We trust the email and sub from the validated token info.
+      const email = tokenInfo.email;
+      const googleId = tokenInfo.sub;
 
-        if (payload && payload.email && payload.sub) {
-          // Payload is valid, proceed with login/user creation
-          const user: UserDocument = await this.authService.validateOAuthLogin(
-            payload.sub,
-            payload.email,
-            payload.given_name,
-            payload.family_name,
-            payload.picture,
-          );
-
-          return done(null, user);
-        } else {
-          // Payload exists but is missing required fields
-          throw new UnauthorizedException(
-            'Google authentication failed: Token payload is invalid or missing required fields.',
-          );
-        }
-      } else {
-        // Ticket itself is null or undefined, verification failed
-        throw new UnauthorizedException('ID token could not be verified.');
+      if (!email || !googleId) {
+        throw new UnauthorizedException(
+          'Could not retrieve valid email or user ID from Google token.',
+        );
       }
-    } catch (err) {
-      // Use a type assertion `as Error` to tell TypeScript that `err` has a `message` property.
-      const errorMessage = (err as Error).message || 'Unknown error';
-      this.logger.error(`Google ID Token verification failed: ${errorMessage}`);
-      return done(
-        new UnauthorizedException(
-          'Google ID Token verification failed. Please try again.',
-        ),
-        false,
+
+      // We can safely use the less sensitive name and picture from the profile object.
+      const firstName = profile.name?.givenName;
+      const lastName = profile.name?.familyName;
+      const picture = profile.photos?.[0]?.value;
+
+      // Find or create the user based on the validated information.
+      const user = await this.authService.validateOAuthLogin(
+        googleId,
+        email,
+        firstName,
+        lastName,
+        picture,
       );
+
+      return user;
+    } catch (err) {
+      // --- FIX START: Add a check before accessing `err.stack` ---
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      const errorStack = err instanceof Error ? err.stack : undefined;
+      this.logger.error(
+        `Google token validation failed: ${errorMessage}`,
+        errorStack,
+      );
+      // --- FIX END ---
+      throw new UnauthorizedException('Failed to validate Google token.');
     }
   }
 }
