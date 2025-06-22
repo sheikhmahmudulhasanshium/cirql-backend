@@ -1,4 +1,5 @@
 // src/app.module.ts
+
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -15,10 +16,9 @@ import { SocialModule } from './social/social.module';
 import { AnnouncementsModule } from './announcement/announcement.module';
 import { AuditModule } from './audit/audit.module';
 import { EmailModule } from './email/email.module';
-// FIX: Remove the unused 'PasswordResetToken' class from the import.
+import { ContactModule } from './contact/contact.module';
 import { PasswordResetTokenSchema } from './auth/schemas/password-reset-token.schema';
 
-// Define the structure of your expected environment variables
 interface EnvironmentVariables {
   PORT: number;
   MONGODB_URI: string;
@@ -33,7 +33,6 @@ interface EnvironmentVariables {
   ALLOWED_FRONTEND_ORIGINS: string;
 }
 
-// Define the Joi validation schema for the environment variables
 const envValidationSchema = Joi.object<EnvironmentVariables, true>({
   PORT: Joi.number().default(3001),
   MONGODB_URI: Joi.string().required(),
@@ -92,6 +91,7 @@ const envValidationSchema = Joi.object<EnvironmentVariables, true>({
     AnnouncementsModule,
     AuditModule,
     EmailModule,
+    ContactModule,
   ],
   controllers: [AppController],
   providers: [AppService],
