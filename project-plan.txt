@@ -88,51 +88,69 @@ Backend's GOOGLE_CALLBACK_TO_BACKEND_URL is static for its environment (local or
 Frontend's finalRedirectUri (in state) is dynamic and tells the backend where the frontend client wants the final JWT redirect.
 Backend's ALLOWED_FRONTEND_ORIGINS acts as a security whitelist for that final JWT redirect, ensuring the backend only sends tokens to trusted frontend origins, regardless of what the state parameter claims. This list should contain both your production frontend origin and http://localhost:3000 in both backend environments to allow flexible testing.
 This setup achieves your goal: authentication can work "no matter what the environment is" (local FE to local BE, local FE to prod BE, prod FE to prod BE) because the system is designed to handle these different origin combinations through configuration and the dynamic state parameter.
-
 cirql-backend/
-├── .env                  
-├── .eslintrc.js          
-├── .gitignore
-├── .prettierrc           
-├── eslint.config.mjs       
-├── nest-cli.json         
-├── package.json          
-├── pnpm-lock.yaml        
-├── project-plan.txt     
-├── README.md    
-├── tsconfig.build.json   
-└── tsconfig.json         
-└── vercel.json
+├── .env                    # (Not provided, assumed)
+├── .eslintrc.js            # (Not provided, assumed)
+├── .gitignore              # (Not provided, assumed)
+├── .prettierrc             # (Not provided, assumed)
+├── nest-cli.json           # (Not provided, assumed)
+├── package.json            # (Not provided, assumed)
+├── tsconfig.build.json     # (Not provided, assumed)
+├── tsconfig.json           # (Not provided, assumed)
 ├── src/
-│   ├── main.ts               
-│   ├── app.controller.ts     
-│   ├── app.service.ts        
+│   ├── main.ts
+│   ├── app.controller.ts
 │   ├── app.module.ts
-│   ├── announcement/         
+│   ├── app.service.ts
+│   ├── announcement/
 │   │   ├── dto/
 │   │   │   ├── create-announcement.dto.ts
 │   │   │   └── update-announcement.dto.ts
-│   │   ├── schemas/
-│   │   │   └── announcement.schema.ts
+│   │   ├── entities/
+│   │   │   └── announcement.entity.ts
 │   │   ├── announcement.controller.ts
-│   │   ├── announcement.service.ts
-│   │   └── announcement.module.ts
+│   │   ├── announcement.module.ts
+│   │   └── announcement.service.ts
+│   ├── audit/
+│   │   ├── schemas/
+│   │   │   └── audit-log.schema.ts
+│   │   ├── audit.controller.ts
+│   │   ├── audit.module.ts
+│   │   └── audit.service.ts
 │   ├── auth/
 │   │   ├── decorators/
 │   │   │   └── current-user.decorator.ts
+│   │   ├── dto/
+│   │   │   ├── forgot-password.dto.ts
+│   │   │   ├── reset-password.dto.ts
+│   │   │   └── two-factor-code.dto.ts
+│   │   ├── schemas/
+│   │   │   └── password-reset-token.schema.ts
 │   │   ├── strategies/
 │   │   │   ├── google.strategy.ts
+│   │   │   ├── jwt-2fa.stategy.ts
 │   │   │   └── jwt.strategy.ts
 │   │   ├── auth.controller.ts
+│   │   ├── auth.module.ts
 │   │   ├── auth.service.ts
-│   │   └── auth.module.ts
+│   │   └── encryption.service.ts
 │   ├── common/
-│   │   ├── decorators/            
-│   │   │   └── admin-only.decorator.ts
-│   │   ├── guards/                
-│   │   │   └── admin.guard.ts
+│   │   ├── decorators/
+│   │   │   └── roles.decorator.ts
+│   │   ├── enums/
+│   │   │   └── role.enum.ts
+│   │   ├── guards/
+│   │   │   └── roles.guard.ts
 │   │   └── pipes/
 │   │       └── parse-object-id.pipe.ts
+│   ├── contact/
+│   │   ├── dto/
+│   │   │   └── contact.dto.ts
+│   │   ├── contact.controller.ts
+│   │   └── contact.module.ts
+│   ├── email/
+│   │   ├── email.module.ts
+│   │   └── email.service.ts
 │   ├── settings/
 │   │   ├── dto/
 │   │   │   ├── create-setting.dto.ts
@@ -140,9 +158,14 @@ cirql-backend/
 │   │   ├── schemas/
 │   │   │   └── setting.schema.ts
 │   │   ├── settings.controller.ts
-│   │   ├── settings.service.ts
-│   │   └── settings.module.ts
+│   │   ├── settings.module.ts
+│   │   └── settings.service.ts
 │   ├── social/
+│   │   ├── dto/
+│   │   │   ├── create-group.dto.ts
+│   │   │   ├── manage-group-member.dto.ts
+│   │   │   ├── send-friend-request.dto.ts
+│   │   │   └── update-group.dto.ts
 │   │   ├── schemas/
 │   │   │   ├── friend-request.schema.ts
 │   │   │   ├── group.schema.ts
@@ -156,21 +179,32 @@ cirql-backend/
 │   │   ├── recommendations.controller.ts
 │   │   ├── recommendations.service.ts
 │   │   ├── social.controller.ts
-│   │   ├── social.service.ts
-│   │   └── social.module.ts
+│   │   ├── social.module.ts
+│   │   └── social.service.ts
+│   ├── support/
+│   │   ├── dto/
+│   │   │   ├── create-support.dto.ts
+│   │   │   └── update-support.dto.ts
+│   │   ├── schemas/
+│   │   │   ├── message.schema.ts
+│   │   │   └── ticket.schema.ts
+│   │   ├── support.controller.ts
+│   │   ├── support.module.ts
+│   │   └── support.service.ts
 │   └── users/
 │       ├── dto/
+│       │   ├── public-profile.dto.ts
+│       │   ├── update-user-roles.dto.ts
 │       │   └── update-user.dto.ts
 │       ├── schemas/
 │       │   └── user.schema.ts
 │       ├── users.controller.ts
-│       ├── users.service.ts
-│       └── users.module.ts
-├── dist/ 
-├── node_modules/ 
-├── public/ 
-└── test/    
-
+│       ├── users.module.ts
+│       └── users.service.ts
+├── dist/                   # (Output directory, assumed)
+├── node_modules/           # (Dependencies, assumed)
+├── public/                 # (Static assets, assumed)
+└── test/                   # (Tests, assumed)
         {
   "title": "CiRQL is Born! 🎉",
   "content": "On May 15, 2025, CiRQL was created to help people connect meaningfully in private spaces. We're building a better way to stay connected with the people and topics that matter to you. Join us!",

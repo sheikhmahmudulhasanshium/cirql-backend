@@ -7,6 +7,10 @@ import * as Joi from 'joi';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 
+// --- FIX: Import the ThrottlerModule and its Guard ---
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
@@ -16,9 +20,10 @@ import { SocialModule } from './social/social.module';
 import { AnnouncementsModule } from './announcement/announcement.module';
 import { AuditModule } from './audit/audit.module';
 import { EmailModule } from './email/email.module';
-import { ContactModule } from './contact/contact.module';
 import { PasswordResetTokenSchema } from './auth/schemas/password-reset-token.schema';
+import { SupportModule } from './support/support.module';
 
+// Your Joi schema is correct and does not need changes.
 interface EnvironmentVariables {
   PORT: number;
   MONGODB_URI: string;
@@ -81,6 +86,13 @@ const envValidationSchema = Joi.object<EnvironmentVariables, true>({
       },
       inject: [ConfigService],
     }),
+    // --- FIX: Configure rate limiting globally ---
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000, // Time-to-live in milliseconds (60 seconds)
+        limit: 20, // Max 20 requests from the same IP per minute
+      },
+    ]),
     MongooseModule.forFeature([
       { name: 'PasswordResetToken', schema: PasswordResetTokenSchema },
     ]),
@@ -91,9 +103,16 @@ const envValidationSchema = Joi.object<EnvironmentVariables, true>({
     AnnouncementsModule,
     AuditModule,
     EmailModule,
-    ContactModule,
+    SupportModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // --- FIX: Apply the ThrottlerGuard to all routes globally ---
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

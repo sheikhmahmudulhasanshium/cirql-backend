@@ -8,7 +8,7 @@
 
 <p align="center">
   The backend service for the Cirql application, built with <a href="http://nestjs.com/" target="_blank">NestJS</a>.
-  This API handles secure user authentication, advanced user management, Two-Factor Authentication (2FA), and other core functionalities.
+  This API handles secure user authentication, advanced user management, a complete support ticketing system, and other core functionalities.
   <br />
   Deployed at: <a href="https://cirql-backend.vercel.app/" target="_blank">cirql-backend.vercel.app</a>
   <br />
@@ -21,9 +21,16 @@ This repository contains the source code for the Cirql Backend API. It provides 
 
 *   **Secure Authentication:**
     *   **JWT-based authentication** for stateless sessions.
-    *   **Google OAuth 2.0 integration** with secure ID token verification to meet Google's latest security standards, including Cross-Account Protection.
-    *   **Two-Factor Authentication (2FA)** using TOTP, including QR code generation, backup codes, and encrypted secret storage.
-    *   **Password Reset Flow** with secure, expiring tokens sent via email.
+    *   **Google OAuth 2.0 integration** using the `tokeninfo` endpoint for secure, server-to-server validation that satisfies Google's Cross-Account Protection requirements.
+    *   **Two-Factor Authentication (2FA)** using TOTP, including QR code generation, backup codes, and symmetrically encrypted secret storage.
+    *   **Password Reset Flow** with secure, expiring tokens.
+
+*   **Support Ticketing System:**
+    *   A full-featured two-way conversation system allowing users and admins to communicate.
+    *   Users can create tickets based on categories (Feedback, Complaint, etc.), which automatically updates the email subject for easy filtering.
+    *   Admins can view all tickets and reply directly.
+    *   Users have a complete log of their past conversations.
+    *   Support for file/link attachments in messages.
 
 *   **Advanced User Management:**
     *   CRUD operations for user profiles.
@@ -31,16 +38,12 @@ This repository contains the source code for the Cirql Backend API. It provides 
 
 *   **Comprehensive Auditing:** A dedicated `AuditModule` to log sensitive administrative actions, such as role changes and account deletions, for accountability.
 
-*   **Personalized User Settings:** A flexible system allowing users to manage their UI, accessibility, and notification preferences.
-
-*   **Secure API Endpoints:** Includes a secure endpoint for the frontend contact form, preventing the need for sensitive API scopes on the client-side.
+*   **Security & Performance:**
+    *   **DDoS Protection & Rate Limiting** applied globally using `@nestjs/throttler`.
+    *   Input validation on all DTOs using `class-validator`.
+    *   Basic security headers configured with `helmet`.
 
 *   **API Documentation:** Beautiful, themed, and automated API documentation with Swagger (OpenAPI) available at the `/api` endpoint.
-
-*   **Configuration & Deployment:**
-    *   Environment-based configuration using `@nestjs/config` and Joi validation.
-    *   Database integration with MongoDB via Mongoose.
-    *   Configured for easy deployment on Vercel and local development.
 
 ## Prerequisites
 
@@ -50,6 +53,7 @@ Before you begin, ensure you have met the following requirements:
 *   [pnpm](https://pnpm.io/) (or npm/yarn, but pnpm is used in this project's scripts)
 *   A MongoDB instance (local or cloud-hosted, e.g., MongoDB Atlas)
 *   Google OAuth 2.0 Credentials (Client ID and Client Secret) from the [Google Cloud Console](https://console.cloud.google.com/).
+*   A Gmail account with an **App Password** for sending emails via Nodemailer.
 
 ## Environment Setup
 
@@ -69,8 +73,8 @@ Before you begin, ensure you have met the following requirements:
     JWT_SECRET=your_strong_jwt_secret_for_dev
     JWT_EXPIRATION_TIME=3600s # e.g., 1h, 7d
 
-    # --- NEW & CRITICAL: 2FA Encryption Key ---
-    # Must be a 32-character string. Use a password generator or `openssl rand -hex 16`
+    # 2FA Encryption Key
+    # CRITICAL: Must be a 32-character string. Use a password generator.
     TWO_FACTOR_ENCRYPTION_KEY=your_unique_32_char_encryption_key
 
     # URLs (for local development)
@@ -82,6 +86,12 @@ Before you begin, ensure you have met the following requirements:
     GOOGLE_CLIENT_SECRET=your_google_client_secret
     GOOGLE_CALLBACK_TO_BACKEND_URL=http://localhost:3001/auth/google/callback
 
+    # Email Service (Nodemailer with Gmail)
+    # IMPORTANT: GMAIL_APP_PASSWORD is NOT your real password.
+    # You must generate a 16-character App Password from your Google Account security settings.
+    GMAIL_USER=your-email@gmail.com
+    GMAIL_APP_PASSWORD=your_16_character_app_password
+
     # Security/CORS (for local development)
     ALLOWED_FRONTEND_ORIGINS=http://localhost:3000
     ```
@@ -89,25 +99,27 @@ Before you begin, ensure you have met the following requirements:
     **Important for Google OAuth:**
     *   In your Google Cloud Console OAuth 2.0 client settings, ensure you are using a **"Web application"** type credential.
     *   **Authorized JavaScript origins:**
-        *   `http://localhost:3000` (for local frontend dev)
-        *   `https://cirql.vercel.app` (for production frontend)
+        *   `http://localhost:3000`
+        *   `https://cirql.vercel.app`
     *   **Authorized redirect URIs:**
-        *   `http://localhost:3001/auth/google/callback` (for local backend dev)
-        *   `https://cirql-backend.vercel.app/auth/google/callback` (for production backend)
+        *   `http://localhost:3001/auth/google/callback`
+        *   `https://cirql-backend.vercel.app/auth/google/callback`
 
     **Production Environment Variables (Vercel):**
-    When deploying to Vercel, you must set these environment variables in your Vercel project settings.
+    When deploying to Vercel, you must set these environment variables in your Vercel project settings. Use strong, unique values for production.
     *   `NODE_ENV`: `production`
-    *   `MONGODB_URI`: Your production MongoDB connection string.
-    *   `JWT_SECRET`: A strong, unique JWT secret for production.
-    *   `JWT_EXPIRATION_TIME`: e.g., `3600s`
-    *   `TWO_FACTOR_ENCRYPTION_KEY`: A **different**, strong 32-character key for production.
-    *   `FRONTEND_URL`: `https://cirql.vercel.app`
-    *   `BACKEND_URL`: `https://cirql-backend.vercel.app`
-    *   `GOOGLE_CLIENT_ID`: Your Google Client ID.
-    *   `GOOGLE_CLIENT_SECRET`: Your Google Client Secret.
-    *   `GOOGLE_CALLBACK_TO_BACKEND_URL`: `https://cirql-backend.vercel.app/auth/google/callback`
-    *   `ALLOWED_FRONTEND_ORIGINS`: `https://cirql.vercel.app`
+    *   `MONGODB_URI`
+    *   `JWT_SECRET`
+    *   `JWT_EXPIRATION_TIME`
+    *   `TWO_FACTOR_ENCRYPTION_KEY`
+    *   `FRONTEND_URL`
+    *   `BACKEND_URL`
+    *   `GOOGLE_CLIENT_ID`
+    *   `GOOGLE_CLIENT_SECRET`
+    *   `GOOGLE_CALLBACK_TO_BACKEND_URL`
+    *   `GMAIL_USER`
+    *   `GMAIL_APP_PASSWORD`
+    *   `ALLOWED_FRONTEND_ORIGINS`
 
 ## Installation
 
