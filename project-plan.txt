@@ -143,11 +143,6 @@ cirql-backend/
 │   │   │   └── roles.guard.ts
 │   │   └── pipes/
 │   │       └── parse-object-id.pipe.ts
-│   ├── contact/
-│   │   ├── dto/
-│   │   │   └── contact.dto.ts
-│   │   ├── contact.controller.ts
-│   │   └── contact.module.ts
 │   ├── email/
 │   │   ├── email.module.ts
 │   │   └── email.service.ts
@@ -183,6 +178,7 @@ cirql-backend/
 │   │   └── social.service.ts
 │   ├── support/
 │   │   ├── dto/
+│   │   │   ├── create-public-ticket.dto.ts
 │   │   │   ├── create-support.dto.ts
 │   │   │   └── update-support.dto.ts
 │   │   ├── schemas/
@@ -205,6 +201,7 @@ cirql-backend/
 ├── node_modules/           # (Dependencies, assumed)
 ├── public/                 # (Static assets, assumed)
 └── test/                   # (Tests, assumed)
+
         {
   "title": "CiRQL is Born! 🎉",
   "content": "On May 15, 2025, CiRQL was created to help people connect meaningfully in private spaces. We're building a better way to stay connected with the people and topics that matter to you. Join us!",

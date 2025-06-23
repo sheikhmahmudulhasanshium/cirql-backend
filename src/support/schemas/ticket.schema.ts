@@ -2,13 +2,16 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
+// --- THIS IS THE CRITICAL FIX ---
+// We explicitly define the document type to ensure _id is a Types.ObjectId
+export type TicketDocument = Ticket & Document & { _id: Types.ObjectId };
+
 export enum TicketCategory {
   COMPLAINT = 'Complaint',
   REVIEW = 'Review',
   SUGGESTION = 'Suggestion',
   FEEDBACK = 'Feedback',
   TECHNICAL_SUPPORT = 'Technical Support',
-  // --- NEW: Add the category from your public contact form ---
   INVESTMENT_OFFER = 'Investment Offer',
   OTHER = 'Other',
 }
@@ -21,17 +24,14 @@ export enum TicketStatus {
 
 @Schema({ timestamps: true })
 export class Ticket extends Document {
-  // --- MODIFICATION: User is now optional ---
   @Prop({ type: Types.ObjectId, ref: 'User', required: false, index: true })
   user?: Types.ObjectId;
 
-  // --- NEW: Fields for unauthenticated guest submissions ---
   @Prop({ required: false })
   guestName?: string;
 
   @Prop({ required: false, lowercase: true })
   guestEmail?: string;
-  // --- END NEW ---
 
   @Prop({ type: String, enum: TicketCategory, required: true })
   category: TicketCategory;
