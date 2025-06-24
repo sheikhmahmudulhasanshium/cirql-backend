@@ -1,8 +1,12 @@
+// src/users/users.service.ts
+
 import {
   Injectable,
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  forwardRef,
+  Inject,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, FilterQuery, Types } from 'mongoose';
@@ -13,6 +17,8 @@ import { UpdateUserRolesDto } from './dto/update-user-roles.dto';
 import { PublicProfileDto } from './dto/public-profile.dto';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/schemas/audit-log.schema';
+import { BanUserDto } from './dto/ban-user.dto';
+import { EmailService } from '../email/email.service';
 
 export type AdminUserListView = {
   _id: Types.ObjectId;
@@ -24,14 +30,12 @@ export type AdminUserListView = {
   lastLogin: Date | null | undefined;
   is2FAEnabled: boolean;
 };
-
 export interface FindAllUsersResponse {
   data: AdminUserListView[];
   total: number;
   page: number;
   limit: number;
 }
-
 export interface FindPublicProfilesResponse {
   data: PublicProfileDto[];
   total: number;
@@ -43,17 +47,17 @@ export interface FindPublicProfilesResponse {
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @Inject(forwardRef(() => AuditService))
     private readonly auditService: AuditService,
+    private readonly emailService: EmailService,
   ) {}
 
   async findByIdWith2FASecret(id: string): Promise<UserDocument | null> {
     return this.userModel.findById(id).select('+twoFactorAuthSecret').exec();
   }
-
   async updateLastLogin(userId: Types.ObjectId): Promise<void> {
     await this.userModel.updateOne({ _id: userId }, { lastLogin: new Date() });
   }
-
   async setTwoFactorSecret(
     userId: string,
     secret: string,
@@ -64,35 +68,26 @@ export class UsersService {
       { new: true },
     );
   }
-
   async enable2FA(
     userId: string,
     hashedBackupCodes: string[],
   ): Promise<UserDocument | null> {
     return this.userModel.findByIdAndUpdate(
       userId,
-      {
-        is2FAEnabled: true,
-        twoFactorAuthBackupCodes: hashedBackupCodes,
-      },
+      { is2FAEnabled: true, twoFactorAuthBackupCodes: hashedBackupCodes },
       { new: true },
     );
   }
-
   async disable2FA(userId: string): Promise<UserDocument | null> {
     return this.userModel.findByIdAndUpdate(
       userId,
       {
         is2FAEnabled: false,
-        $unset: {
-          twoFactorAuthSecret: '',
-          twoFactorAuthBackupCodes: '',
-        },
+        $unset: { twoFactorAuthSecret: '', twoFactorAuthBackupCodes: '' },
       },
       { new: true },
     );
   }
-
   async invalidateBackupCode(
     userId: Types.ObjectId,
     codeIndex: number,
@@ -147,9 +142,7 @@ export class UsersService {
     limit: number,
   ): Promise<FindPublicProfilesResponse> {
     const skip = (page - 1) * limit;
-    const filter: FilterQuery<UserDocument> = {
-      accountStatus: 'active',
-    };
+    const filter: FilterQuery<UserDocument> = { accountStatus: 'active' };
     const [users, total] = await Promise.all([
       this.userModel.find(filter).skip(skip).limit(limit).lean().exec(),
       this.userModel.countDocuments(filter).exec(),
@@ -207,18 +200,87 @@ export class UsersService {
     return updatedUser;
   }
 
+  async banUser(
+    idToBan: string,
+    banUserDto: BanUserDto,
+    requestingUser: UserDocument,
+  ): Promise<UserDocument> {
+    const userToBan = await this.findById(idToBan);
+    if (!userToBan) {
+      throw new NotFoundException(`User with ID "${idToBan}" not found.`);
+    }
+    if (userToBan.id === requestingUser.id) {
+      throw new ForbiddenException('You cannot ban your own account.');
+    }
+    if (userToBan.roles.includes(Role.Owner)) {
+      throw new ForbiddenException('The Owner account cannot be banned.');
+    }
+
+    userToBan.accountStatus = 'banned';
+    userToBan.banReason = banUserDto.reason;
+    const bannedUser = await userToBan.save();
+
+    if (bannedUser.email) {
+      await this.emailService.sendAccountStatusEmail(
+        bannedUser.email,
+        'Your Cirql Account Has Been Suspended',
+        'Account Suspension Notice',
+        `Your account has been suspended for the following reason: <strong>${banUserDto.reason}</strong>`,
+      );
+    }
+
+    await this.auditService.createLog({
+      actor: requestingUser,
+      action: AuditAction.USER_ACCOUNT_BANNED,
+      targetId: bannedUser._id,
+      targetType: 'User',
+      reason: banUserDto.reason,
+    });
+
+    return bannedUser;
+  }
+
+  async unbanUser(
+    idToUnban: string,
+    requestingUser: UserDocument,
+  ): Promise<UserDocument> {
+    const userToUnban = await this.findById(idToUnban);
+    if (!userToUnban) {
+      throw new NotFoundException(`User with ID "${idToUnban}" not found.`);
+    }
+
+    userToUnban.accountStatus = 'active';
+    userToUnban.banReason = undefined;
+    const unbannedUser = await userToUnban.save();
+
+    if (unbannedUser.email) {
+      await this.emailService.sendAccountStatusEmail(
+        unbannedUser.email,
+        'Your Cirql Account Has Been Reinstated',
+        'Account Reinstated',
+        'Your account suspension has been lifted. You can now log in and access all features.',
+      );
+    }
+
+    await this.auditService.createLog({
+      actor: requestingUser,
+      action: AuditAction.USER_ACCOUNT_UNBANNED,
+      targetId: unbannedUser._id,
+      targetType: 'User',
+    });
+
+    return unbannedUser;
+  }
+
   async findById(id: string | Types.ObjectId): Promise<UserDocument | null> {
     return this.userModel.findById(id).exec();
   }
-
   async findOneByEmail(email: string): Promise<UserDocument | null> {
     return this.userModel.findOne({ email: email.toLowerCase() }).exec();
   }
-
   async findOneByGoogleId(googleId: string): Promise<UserDocument | null> {
     return this.userModel.findOne({ googleId }).exec();
   }
-
   async create(userData: Partial<User>): Promise<UserDocument> {
     const newUser = new this.userModel(userData);
     return newUser.save();
@@ -275,10 +337,7 @@ export class UsersService {
       targetId: deletedUser._id,
       targetType: 'User',
       details: {
-        before: {
-          email: deletedUser.email,
-          roles: deletedUser.roles,
-        },
+        before: { email: deletedUser.email, roles: deletedUser.roles },
       },
     });
     return deletedUser;

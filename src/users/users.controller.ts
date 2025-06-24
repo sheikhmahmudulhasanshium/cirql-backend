@@ -1,3 +1,5 @@
+// src/users/users.controller.ts
+
 import {
   Controller,
   Get,
@@ -35,6 +37,7 @@ import { Role } from '../common/enums/role.enum';
 import { Types } from 'mongoose';
 import { UpdateUserRolesDto } from './dto/update-user-roles.dto';
 import { PublicProfileDto } from './dto/public-profile.dto';
+import { BanUserDto } from './dto/ban-user.dto'; // --- ADDED IMPORT ---
 
 interface AuthenticatedRequest extends ExpressRequest {
   user: UserDocument;
@@ -238,6 +241,47 @@ export class UsersController {
   ): Promise<UserDocument> {
     return this.usersService.updateUserRoles(id, updateUserRolesDto, req.user);
   }
+
+  // --- NEW ENDPOINTS START ---
+
+  @Patch(':id/ban')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.Admin, Role.Owner)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Ban a user's account (Admin/Owner only)" })
+  @ApiParam({ name: 'id', description: 'The ID of the user to ban' })
+  @ApiResponse({
+    status: 200,
+    description: 'User banned successfully.',
+    type: User,
+  })
+  async banUser(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() banUserDto: BanUserDto,
+  ): Promise<UserDocument> {
+    return this.usersService.banUser(id, banUserDto, req.user);
+  }
+
+  @Patch(':id/unban')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.Admin, Role.Owner)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Unban a user's account (Admin/Owner only)" })
+  @ApiParam({ name: 'id', description: 'The ID of the user to unban' })
+  @ApiResponse({
+    status: 200,
+    description: 'User unbanned successfully.',
+    type: User,
+  })
+  async unbanUser(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ): Promise<UserDocument> {
+    return this.usersService.unbanUser(id, req.user);
+  }
+
+  // --- NEW ENDPOINTS END ---
 
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)

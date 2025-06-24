@@ -1,3 +1,5 @@
+// src/auth/auth.controller.ts
+
 import {
   Controller,
   Get,
@@ -85,9 +87,7 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Disable 2FA by providing a valid 2FA code',
-  })
+  @ApiOperation({ summary: 'Disable 2FA by providing a valid 2FA code' })
   @ApiResponse({
     status: 200,
     description: '2FA has been successfully disabled.',
@@ -204,6 +204,7 @@ export class AuthController {
     return { message: 'Logout acknowledged. Please clear your token.' };
   }
 
+  // --- THIS METHOD IS CORRECTED ---
   @Get('status')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
@@ -222,6 +223,8 @@ export class AuthController {
       picture: user.picture,
       roles: user.roles,
       is2FAEnabled: user.is2FAEnabled,
+      accountStatus: user.accountStatus, // <-- Added
+      banReason: user.banReason, // <-- Added
     };
   }
 }

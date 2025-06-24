@@ -1,3 +1,5 @@
+// src/users/schemas/user.schema.ts
+
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -59,8 +61,12 @@ export class User {
   @ApiProperty({
     description: 'Account status (e.g., active, inactive, banned)',
   })
-  @Prop({ type: String, default: 'active' })
+  @Prop({ type: String, default: 'active', index: true })
   accountStatus: string;
+
+  @ApiPropertyOptional({ description: 'The reason for an account ban.' })
+  @Prop({ type: String, required: false })
+  banReason?: string;
 
   @ApiPropertyOptional({
     type: Date,

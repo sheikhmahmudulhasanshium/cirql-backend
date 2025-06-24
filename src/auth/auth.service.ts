@@ -1,3 +1,5 @@
+// src/auth/auth.service.ts
+
 import {
   Injectable,
   InternalServerErrorException,
@@ -27,6 +29,7 @@ import * as qrcode from 'qrcode';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/schemas/audit-log.schema';
 
+// --- THIS INTERFACE IS CORRECTED ---
 export interface SanitizedUser {
   _id: Types.ObjectId;
   email: string | undefined;
@@ -35,6 +38,8 @@ export interface SanitizedUser {
   picture: string | undefined;
   roles: Role[];
   is2FAEnabled: boolean;
+  accountStatus: string;
+  banReason?: string;
 }
 
 export interface AuthTokenResponse {
@@ -79,6 +84,7 @@ export class AuthService {
     return this.getFullAccessToken(user);
   }
 
+  // --- THIS METHOD IS CORRECTED ---
   private getFullAccessToken(user: UserDocument): AuthTokenResponse {
     const payload = {
       email: user.email,
@@ -95,14 +101,15 @@ export class AuthService {
       picture: user.picture,
       roles: user.roles,
       is2FAEnabled: user.is2FAEnabled,
+      accountStatus: user.accountStatus, // <-- Added
+      banReason: user.banReason, // <-- Added
     };
     return { accessToken, user: sanitizedUser };
   }
 
-  async generateTwoFactorSecret(user: UserDocument): Promise<{
-    secret: string;
-    otpAuthUrl: string;
-  }> {
+  async generateTwoFactorSecret(
+    user: UserDocument,
+  ): Promise<{ secret: string; otpAuthUrl: string }> {
     if (!user.email) {
       throw new BadRequestException(
         'User email is required to generate a 2FA secret.',
@@ -131,7 +138,6 @@ export class AuthService {
       this.logger.warn(`User ${user.id} has no 2FA secret for validation.`);
       return false;
     }
-
     const decryptedSecret = this.encryptionService.decrypt(
       user.twoFactorAuthSecret,
     );
@@ -139,7 +145,6 @@ export class AuthService {
       token: twoFactorCode,
       secret: decryptedSecret,
     });
-
     if (isTotpValid) {
       this.logger.log(`User ${user.id} provided a valid TOTP code.`);
       return true;
@@ -147,7 +152,6 @@ export class AuthService {
     this.logger.debug(
       `User ${user.id} provided an invalid TOTP code. Checking backup codes...`,
     );
-
     if (
       user.twoFactorAuthBackupCodes &&
       user.twoFactorAuthBackupCodes.length > 0
@@ -163,7 +167,6 @@ export class AuthService {
         }
       }
     }
-
     this.logger.warn(
       `All validation failed for user ${user.id}. Code is invalid.`,
     );
@@ -260,9 +263,7 @@ export class AuthService {
   async handleResetPassword(resetPasswordDto: ResetPasswordDto): Promise<void> {
     const { token: rawToken, password } = resetPasswordDto;
     const potentialTokens = await this.passwordResetTokenModel
-      .find({
-        expiresAt: { $gt: new Date() },
-      })
+      .find({ expiresAt: { $gt: new Date() } })
       .populate('userId');
     let validTokenDoc: PasswordResetTokenDocument | null = null;
     for (const doc of potentialTokens) {

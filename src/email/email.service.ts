@@ -4,14 +4,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
-// Interface for initial contact form submission
 interface ContactFormData {
   name: string;
   fromEmail: string;
   message: string;
 }
-
-// --- NEW --- Interface for ticket replies
 interface TicketReplyData {
   to: string;
   ticketId: string;
@@ -35,19 +32,45 @@ export class EmailService {
     });
   }
 
-  // --- NEW --- Helper method to get the admin email address
   public getAdminEmail(): string {
     return this.configService.get<string>('GMAIL_USER')!;
   }
 
-  // This method for password resets remains unchanged.
+  // --- THIS IS THE NEW, CENTRALIZED SIGNATURE METHOD, UPDATED WITH YOUR CONTENT ---
+  private getEmailSignature(): string {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+
+    return `
+      <p style="margin-top: 25px; margin-bottom: 5px; font-family: Arial, sans-serif; font-size: 14px; color: #222222; font-weight: bold;">
+        The CiRQL Team 👥
+      </p>
+      <p style="margin-top: 0; margin-bottom: 5px; font-family: Arial, sans-serif; font-size: 13px; color: #555555;">
+        🔄 Stay in the loop
+      </p>
+      <p style="margin-top: 0; margin-bottom: 15px; font-family: Arial, sans-serif; font-size: 13px; color: #555555;">
+        🌐 <a href="${frontendUrl}" style="color: #3F8CFF; text-decoration: none;">${frontendUrl}</a>
+      </p>
+      <p style="font-size: 11px; color: #999999; margin-top: 20px;">
+        This is an automated message. For support, please use the contact form on our website.
+      </p>
+    `;
+  }
+
   async sendPasswordResetEmail(email: string, token: string): Promise<void> {
     const resetLink = `${this.configService.get<string>('FRONTEND_URL')}/reset-password?token=${token}`;
     const mailOptions = {
       from: `"Cirql" <${this.getAdminEmail()}>`,
       to: email,
       subject: 'Reset Your Cirql Password',
-      html: `<p>Please click the following link to reset your password:</p><p><a href="${resetLink}">${resetLink}</a></p>`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+          <p>Please click the following link to reset your password:</p>
+          <p><a href="${resetLink}">${resetLink}</a></p>
+          <br>
+          <hr style="border: none; border-top: 1px solid #eeeeee;">
+          ${this.getEmailSignature()}
+        </div>
+      `,
     };
     try {
       await this.transporter.sendMail(mailOptions);
@@ -60,7 +83,6 @@ export class EmailService {
     }
   }
 
-  // This method for the initial contact form remains unchanged.
   async sendContactFormEmail(formData: ContactFormData): Promise<void> {
     const mailOptions = {
       from: `"Cirql Support" <${this.getAdminEmail()}>`,
@@ -68,12 +90,17 @@ export class EmailService {
       replyTo: formData.fromEmail,
       subject: `New Ticket from ${formData.name}`,
       html: `
-        <h3>New Support Ticket Created</h3>
-        <p><b>From:</b> ${formData.name}</p>
-        <p><b>Email:</b> ${formData.fromEmail}</p>
-        <hr>
-        <p><b>Message:</b></p>
-        <p>${formData.message.replace(/\n/g, '<br>')}</p>
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+          <h3>New Support Ticket Created</h3>
+          <p><b>From:</b> ${formData.name}</p>
+          <p><b>Email:</b> ${formData.fromEmail}</p>
+          <hr>
+          <p><b>Message:</b></p>
+          <p>${formData.message.replace(/\n/g, '<br>')}</p>
+          <br>
+          <hr style="border: none; border-top: 1px solid #eeeeee;">
+          ${this.getEmailSignature()}
+        </div>
       `,
     };
     try {
@@ -87,22 +114,27 @@ export class EmailService {
     }
   }
 
-  // --- NEW METHOD --- For sending notifications about replies to existing tickets.
   async sendTicketReplyEmail(data: TicketReplyData): Promise<void> {
     const ticketUrl = `${this.configService.get<string>('FRONTEND_URL')}/contacts/${data.ticketId}`;
-
     const mailOptions = {
       from: `"Cirql Support" <${this.getAdminEmail()}>`,
       to: data.to,
       subject: data.ticketSubject,
       html: `
-        <p>A new reply has been added to your support ticket by <strong>${data.replierName}</strong>.</p>
-        <hr>
-        <p><strong>Reply:</strong></p>
-        <blockquote>${data.replyContent.replace(/\n/g, '<br>')}</blockquote>
-        <hr>
-        <p>You can view the full conversation and reply by clicking the button below:</p>
-        <a href="${ticketUrl}" style="background-color: #3F8CFF; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Ticket</a>
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+          <p>A new reply has been added to your support ticket by <strong>${data.replierName}</strong>.</p>
+          <hr>
+          <p><strong>Reply:</strong></p>
+          <blockquote>${data.replyContent.replace(/\n/g, '<br>')}</blockquote>
+          <hr>
+          <p>You can view the full conversation and reply by clicking the button below:</p>
+          <p style="text-align: center; margin: 20px 0;">
+            <a href="${ticketUrl}" style="background-color: #3F8CFF; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">View Ticket</a>
+          </p>
+          <br>
+          <hr style="border: none; border-top: 1px solid #eeeeee;">
+          ${this.getEmailSignature()}
+        </div>
       `,
     };
     try {
@@ -113,7 +145,42 @@ export class EmailService {
         `Failed to send ticket reply email to ${data.to}.`,
         error,
       );
-      // We don't re-throw here so a failed notification doesn't break the app flow.
+    }
+  }
+
+  async sendAccountStatusEmail(
+    email: string,
+    subject: string,
+    headline: string,
+    details: string,
+  ): Promise<void> {
+    const mailOptions = {
+      from: `"Cirql Support" <${this.getAdminEmail()}>`,
+      to: email,
+      subject: subject,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+          <h2 style="color: #1A1A2E;">${headline}</h2>
+          <p>This is a notification regarding the status of your Cirql account.</p>
+          <hr style="border: none; border-top: 1px solid #eee;">
+          <p><strong>Details:</strong></p>
+          <blockquote style="border-left: 4px solid #ccc; padding-left: 15px; margin: 0; font-style: italic;">
+            ${details.replace(/\n/g, '<br>')}
+          </blockquote>
+          <br>
+          <hr style="border: none; border-top: 1px solid #eeeeee;">
+          ${this.getEmailSignature()}
+        </div>
+      `,
+    };
+    try {
+      await this.transporter.sendMail(mailOptions);
+      this.logger.log(`Account status email sent to: ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send account status email to ${email}`,
+        error,
+      );
     }
   }
 }

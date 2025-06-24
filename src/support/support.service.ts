@@ -8,7 +8,12 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Ticket, TicketDocument, TicketStatus } from './schemas/ticket.schema';
+import {
+  Ticket,
+  TicketDocument,
+  TicketStatus,
+  TicketCategory,
+} from './schemas/ticket.schema';
 import { Message } from './schemas/message.schema';
 import { CreateSupportDto } from './dto/create-support.dto';
 import { UpdateSupportDto } from './dto/update-support.dto';
@@ -16,15 +21,14 @@ import { UserDocument } from '../users/schemas/user.schema';
 import { EmailService } from '../email/email.service';
 import { Role } from '../common/enums/role.enum';
 import { CreatePublicTicketDto } from './dto/create-public-ticket.dto';
+import { CreateAppealDto } from './dto/create-appeal.dto'; // --- ADDED IMPORT ---
 
-// Type guard to check if a populated field is a full UserDocument
 function isUserDocument(
   user: Types.ObjectId | UserDocument | undefined,
 ): user is UserDocument {
   return !!(user && typeof user === 'object' && 'roles' in user);
 }
 
-// DTO for ticket summary lists with unseen status
 export interface TicketSummaryDto extends Omit<Ticket, 'messages'> {
   _id: Types.ObjectId;
   hasUnseenMessages: boolean;
@@ -48,11 +52,9 @@ export class SupportService {
     const ticket = await this.ticketModel
       .findById(ticketId)
       .populate('user', 'email firstName lastName');
-
     if (!ticket) {
       throw new NotFoundException('Ticket not found.');
     }
-
     if (ticket.status === TicketStatus.CLOSED) {
       throw new ForbiddenException(
         'This ticket is closed and cannot be replied to.',
@@ -63,7 +65,6 @@ export class SupportService {
       !!ticket.user &&
       isUserDocument(ticket.user) &&
       ticket.user._id.equals(user._id);
-
     const isAdmin =
       user.roles.includes(Role.Admin) || user.roles.includes(Role.Owner);
 
@@ -83,15 +84,12 @@ export class SupportService {
     await newMessage.save();
     ticket.messages.push(newMessage._id as Types.ObjectId);
 
-    // --- MODIFIED LOGIC: Update seen status on reply ---
-    // When a party replies, we nullify the other party's "seen" timestamp
-    // to ensure the ticket appears as having new messages for them.
     if (isAdmin) {
-      ticket.lastSeenByUserAt = null; // User has not seen this new admin message.
-      ticket.lastSeenByAdminAt = new Date(); // Admin has seen their own message.
+      ticket.lastSeenByUserAt = null;
+      ticket.lastSeenByAdminAt = new Date();
     } else {
-      ticket.lastSeenByAdminAt = null; // Admin has not seen this new user message.
-      ticket.lastSeenByUserAt = new Date(); // User has seen their own message.
+      ticket.lastSeenByAdminAt = null;
+      ticket.lastSeenByUserAt = new Date();
     }
     await ticket.save();
 
@@ -99,11 +97,9 @@ export class SupportService {
     const senderName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim();
 
     if (isAdmin) {
-      const recipientEmail =
-        ticket.user && isUserDocument(ticket.user)
-          ? ticket.user.email
-          : ticket.guestEmail;
-
+      const recipientEmail = isUserDocument(ticket.user)
+        ? ticket.user.email
+        : ticket.guestEmail;
       if (recipientEmail) {
         this.logger.log(
           `Admin replied to ticket ${ticketId}. Notifying user at ${recipientEmail}`,
@@ -115,7 +111,6 @@ export class SupportService {
           replyContent: addMessageDto.content,
           replierName: senderName,
         });
-
         this.logger.log(`Sending copy of admin reply to ${adminEmail}`);
         await this.emailService.sendTicketReplyEmail({
           to: adminEmail,
@@ -137,7 +132,6 @@ export class SupportService {
         replierName: senderName,
       });
     }
-
     return this.getTicketById(ticketId, user);
   }
 
@@ -146,20 +140,16 @@ export class SupportService {
     if (!ticket) {
       throw new NotFoundException('Ticket not found.');
     }
-
     const isAdmin =
       user.roles.includes(Role.Admin) || user.roles.includes(Role.Owner);
     const isOwner = ticket.user && ticket.user.equals(user._id);
-
     if (!isAdmin && !isOwner) {
       throw new ForbiddenException(
         'You do not have permission to perform this action.',
       );
     }
-
     const now = new Date();
     if (isAdmin) {
-      // Only update if the new date is later than the existing one, or if it's null.
       if (!ticket.lastSeenByAdminAt || now > ticket.lastSeenByAdminAt) {
         ticket.lastSeenByAdminAt = now;
       }
@@ -168,7 +158,6 @@ export class SupportService {
         ticket.lastSeenByUserAt = now;
       }
     }
-
     await ticket.save();
     this.logger.log(
       `Ticket ${ticketId} marked as seen by user ${user.id} (role: ${isAdmin ? 'Admin' : 'User'}).`,
@@ -182,11 +171,9 @@ export class SupportService {
     const ticket = await this.ticketModel
       .findById(ticketId)
       .populate('user', 'email firstName');
-
     if (!ticket) {
       throw new NotFoundException('Ticket not found.');
     }
-
     const isAdmin =
       adminUser.roles.includes(Role.Admin) ||
       adminUser.roles.includes(Role.Owner);
@@ -195,22 +182,17 @@ export class SupportService {
         'You do not have permission to close tickets.',
       );
     }
-
     if (ticket.status === TicketStatus.CLOSED) {
       return ticket;
     }
-
     ticket.status = TicketStatus.CLOSED;
     await ticket.save();
     this.logger.log(
       `Ticket ${ticketId} has been closed by admin ${adminUser.id}.`,
     );
-
-    const recipientEmail =
-      ticket.user && isUserDocument(ticket.user)
-        ? ticket.user.email
-        : ticket.guestEmail;
-
+    const recipientEmail = isUserDocument(ticket.user)
+      ? ticket.user.email
+      : ticket.guestEmail;
     if (recipientEmail) {
       const adminName =
         `${adminUser.firstName ?? ''} ${adminUser.lastName ?? ''}`.trim();
@@ -223,8 +205,49 @@ export class SupportService {
       });
       this.logger.log(`Sent ticket closure notification to ${recipientEmail}.`);
     }
-
     return ticket;
+  }
+
+  // --- NEW METHOD ---
+  async createAppealTicket(
+    dto: CreateAppealDto,
+    user: UserDocument,
+  ): Promise<Ticket> {
+    const subject = `[Ban Appeal] - From User: ${user.firstName || user.email}`;
+    this.logger.log(`Creating ban appeal ticket for user ${user.id}`);
+
+    const newTicket = new this.ticketModel({
+      category: TicketCategory.OTHER, // Consider adding a 'BAN_APPEAL' to the enum
+      subject: subject,
+      user: user._id,
+      guestName:
+        `${user.firstName || ''} ${user.lastName || ''}`.trim() ||
+        'Banned User',
+      guestEmail: user.email,
+      lastSeenByAdminAt: null, // Ensure admin has not seen it yet
+      status: TicketStatus.OPEN,
+    });
+
+    const initialMessage = new this.messageModel({
+      ticketId: newTicket._id,
+      sender: user._id,
+      content: dto.message,
+    });
+
+    const savedMessage = await initialMessage.save();
+    newTicket.messages.push(savedMessage._id as Types.ObjectId);
+    await newTicket.save();
+
+    // Notify admin about the new appeal using the existing contact form email method
+    if (user.email) {
+      await this.emailService.sendContactFormEmail({
+        name: `${user.firstName || 'Banned User'} (ID: ${user.id})`,
+        fromEmail: user.email,
+        message: `A new ban appeal has been submitted.\n\n---\n\n${dto.message}`,
+      });
+    }
+
+    return newTicket;
   }
 
   async createPublicTicket(dto: CreatePublicTicketDto): Promise<Ticket> {
@@ -234,7 +257,7 @@ export class SupportService {
       subject: `[${dto.category}] - New Inquiry from ${dto.name}`,
       guestName: dto.name,
       guestEmail: dto.email,
-      lastSeenByAdminAt: null, // Ensure admin has not seen it yet
+      lastSeenByAdminAt: null,
     });
     const initialMessage = new this.messageModel({
       ticketId: newTicket._id,
@@ -284,8 +307,8 @@ export class SupportService {
       ...createTicketDto,
       user: user._id,
       subject,
-      lastSeenByUserAt: new Date(), // User has seen their own initial message
-      lastSeenByAdminAt: null, // Admin has not seen it yet
+      lastSeenByUserAt: new Date(),
+      lastSeenByAdminAt: null,
     });
     const initialMessage = new this.messageModel({
       ticketId: newTicket._id,
@@ -306,7 +329,6 @@ export class SupportService {
       .select('-messages')
       .lean()
       .exec();
-
     return tickets.map((ticket) => ({
       ...ticket,
       hasUnseenMessages:
@@ -327,17 +349,14 @@ export class SupportService {
         },
       })
       .exec();
-
     if (!ticket) {
       throw new NotFoundException('Ticket not found.');
     }
-
     const isAdmin =
       user.roles.includes(Role.Admin) || user.roles.includes(Role.Owner);
     if (isAdmin) {
       return ticket;
     }
-
     if (
       ticket.user &&
       ticket.user instanceof Types.ObjectId &&
@@ -345,7 +364,6 @@ export class SupportService {
     ) {
       return ticket;
     }
-
     throw new ForbiddenException('You cannot view this ticket.');
   }
 
@@ -357,7 +375,6 @@ export class SupportService {
       .select('-messages')
       .lean()
       .exec();
-
     return tickets.map((ticket) => ({
       ...ticket,
       hasUnseenMessages:

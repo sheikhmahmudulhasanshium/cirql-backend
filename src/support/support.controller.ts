@@ -23,6 +23,8 @@ import { Role } from '../common/enums/role.enum';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { CreatePublicTicketDto } from './dto/create-public-ticket.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { CreateAppealDto } from './dto/create-appeal.dto'; // --- ADDED IMPORT ---
+import { BannedUserGuard } from 'src/common/guards/banned-user.guard';
 
 @Controller('support')
 export class SupportController {
@@ -35,6 +37,17 @@ export class SupportController {
   ): Promise<{ message: string }> {
     await this.supportService.createPublicTicket(dto);
     return { message: 'Your ticket has been created successfully!' };
+  }
+
+  // --- NEW ENDPOINT ---
+  @Post('appeal-ticket')
+  @UseGuards(AuthGuard('jwt'), BannedUserGuard) // Protects the route
+  @HttpCode(HttpStatus.CREATED)
+  createAppeal(
+    @Body(new ValidationPipe()) dto: CreateAppealDto,
+    @CurrentUser() user: UserDocument,
+  ) {
+    return this.supportService.createAppealTicket(dto, user);
   }
 
   @Post('tickets')
