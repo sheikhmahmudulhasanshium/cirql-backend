@@ -23,8 +23,9 @@ import { Role } from '../common/enums/role.enum';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { CreatePublicTicketDto } from './dto/create-public-ticket.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { CreateAppealDto } from './dto/create-appeal.dto'; // --- ADDED IMPORT ---
-import { BannedUserGuard } from 'src/common/guards/banned-user.guard';
+// --- THIS IS THE CORRECTED IMPORT PATH TO MATCH YOUR STRUCTURE ---
+import { BannedUserGuard } from '../common/guards/banned-user.guard';
+import { CreateAppealDto } from './dto/create-appeal.dto';
 
 @Controller('support')
 export class SupportController {
@@ -39,9 +40,8 @@ export class SupportController {
     return { message: 'Your ticket has been created successfully!' };
   }
 
-  // --- NEW ENDPOINT ---
   @Post('appeal-ticket')
-  @UseGuards(AuthGuard('jwt'), BannedUserGuard) // Protects the route
+  @UseGuards(AuthGuard('jwt'), BannedUserGuard)
   @HttpCode(HttpStatus.CREATED)
   createAppeal(
     @Body(new ValidationPipe()) dto: CreateAppealDto,
