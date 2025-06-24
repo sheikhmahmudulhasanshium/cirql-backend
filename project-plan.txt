@@ -399,3 +399,23 @@ My specific question/topic for today is: [Insert your specific question or topic
   "twoFASecret": "ENCRYPTED_SECRET_KEY", // Important: Encrypted!
   "backupCodes": ["ENCRYPTED_CODE1", "ENCRYPTED_CODE2"] // Important: Encrypted!
 }
+Project Summary: Contact & Support System Enhancement
+Initial State: The contact form API was partially working. It was saving messages to the database, but the email notification feature was broken. The system had a separate, redundant ContactModule and SupportModule.
+Primary Goal: To fix the API so that a single form submission simultaneously saves the message to the database and sends a notification email to the admin. The system needed to support two-way conversations between users and admins.
+Conversation Log & Key Decisions:
+Initial Diagnosis: We identified that the frontend was working correctly, but the backend was only saving to the database. The email functionality was failing silently due to incorrect credentials (GMAIL_APP_PASSWORD).
+Architectural Flaw Identified: We discovered a major redundancy. The application had both a ContactModule (for public messages) and a SupportModule (for authenticated users), which were trying to do the same thing. This was confusing and inefficient.
+The Unification Strategy (The Final Solution):
+Decision: We decided to completely remove the ContactModule and make the SupportModule the single source of truth for all user-submitted messages.
+Public Form Rerouting: The public contact form on the website was modified to create a "public ticket" by calling a new endpoint: POST /support/public-ticket.
+Database Schema Update: The Ticket schema was updated to handle both logged-in users (with a user ID) and public guests (with guestName and guestEmail fields).
+Implementing the Two-Way Conversation Flow:
+Backend: We modified the SupportService's addMessage method.
+When an admin replies in the app, the system now sends an email notification to the user/guest and sends an archival "gist" of the reply to the admin's own inbox (contact.cirql@gmail.com).
+When a user replies in the app, the system sends an email notification to the admin.
+Frontend: We updated the public contact form (contact-form.tsx) to include a "Category" dropdown and point to the new /support/public-ticket endpoint. The admin dashboard was updated to have a single "Support Tickets" view that shows tickets from both guests and registered users.
+Troubleshooting & Finalization:
+We fixed numerous TypeScript and ESLint errors related to type safety (improper any usage, unsafe _id access, incorrect type guards).
+We confirmed the GMAIL_APP_PASSWORD must be a 16-character code generated from Google Account settings.
+The final backend code is now lint-free, type-safe, and fully functional.
+Final Outcome: The system is now working as intended. Every user inquiry creates a support ticket in a unified system. The database correctly stores the full conversation, and a robust two-way email notification system is in place for both users and admins, with an archival copy for the admin's email inbox.

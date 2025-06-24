@@ -1,4 +1,5 @@
 // src/support/support.controller.ts
+
 import {
   Controller,
   Post,
@@ -9,6 +10,7 @@ import {
   ValidationPipe,
   HttpCode,
   HttpStatus,
+  Patch,
 } from '@nestjs/common';
 import { SupportService } from './support.service';
 import { CreateSupportDto } from './dto/create-support.dto';
@@ -26,9 +28,6 @@ import { AuthGuard } from '@nestjs/passport';
 export class SupportController {
   constructor(private readonly supportService: SupportService) {}
 
-  /**
-   * PUBLIC ENDPOINT: Creates a support ticket from the unauthenticated contact form.
-   */
   @Post('public-ticket')
   @HttpCode(HttpStatus.OK)
   async createPublic(
@@ -38,9 +37,6 @@ export class SupportController {
     return { message: 'Your ticket has been created successfully!' };
   }
 
-  /**
-   * AUTHENTICATED ENDPOINT: Creates a support ticket for a logged-in user.
-   */
   @Post('tickets')
   @UseGuards(AuthGuard('jwt'), ThrottlerGuard)
   create(
@@ -50,9 +46,6 @@ export class SupportController {
     return this.supportService.createTicket(createTicketDto, user);
   }
 
-  /**
-   * AUTHENTICATED ENDPOINT: Adds a message to an existing ticket.
-   */
   @Post('tickets/:id/messages')
   @UseGuards(AuthGuard('jwt'), ThrottlerGuard)
   addMessage(
@@ -63,31 +56,37 @@ export class SupportController {
     return this.supportService.addMessage(id, addMessageDto, user);
   }
 
-  /**
-   * AUTHENTICATED ENDPOINT: Gets all tickets for the currently logged-in user.
-   */
+  @Post('tickets/:id/seen')
+  @UseGuards(AuthGuard('jwt'))
+  @HttpCode(HttpStatus.OK)
+  markAsSeen(@Param('id') id: string, @CurrentUser() user: UserDocument) {
+    return this.supportService.markTicketAsSeen(id, user);
+  }
+
   @Get('tickets')
   @UseGuards(AuthGuard('jwt'))
   getTicketsForUser(@CurrentUser() user: UserDocument) {
     return this.supportService.getTicketsForUser(user._id);
   }
 
-  /**
-   * AUTHENTICATED ENDPOINT: Gets a specific ticket by ID, checking for permission.
-   */
   @Get('tickets/:id')
   @UseGuards(AuthGuard('jwt'))
   getTicketById(@Param('id') id: string, @CurrentUser() user: UserDocument) {
     return this.supportService.getTicketById(id, user);
   }
 
-  /**
-   * ADMIN-ONLY ENDPOINT: Gets all tickets in the system for the admin dashboard.
-   */
   @Get('admin/tickets')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.Admin, Role.Owner)
   getAllTicketsForAdmin() {
     return this.supportService.getAllTicketsForAdmin();
+  }
+
+  @Patch('tickets/:id/close')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.Admin, Role.Owner)
+  @HttpCode(HttpStatus.OK)
+  closeTicket(@Param('id') id: string, @CurrentUser() user: UserDocument) {
+    return this.supportService.closeTicket(id, user);
   }
 }
