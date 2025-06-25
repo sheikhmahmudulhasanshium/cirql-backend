@@ -1,3 +1,5 @@
+// src/auth/auth.module.ts
+
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthService } from './auth.service';
@@ -16,10 +18,18 @@ import {
 import { EncryptionService } from './encryption.service';
 import { AuditModule } from '../audit/audit.module';
 import { Jwt2faStrategy } from './strategies/jwt-2fa.stategy';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { SettingsModule } from '../settings/settings.module';
+import {
+  TwoFactorToken,
+  TwoFactorTokenSchema,
+} from './schemas/two-factor-token.schema';
 
 @Module({
   imports: [
-    forwardRef(() => UsersModule), // <-- THE FIX IS HERE
+    forwardRef(() => UsersModule),
+    NotificationsModule, // AuthService needs NotificationsService
+    SettingsModule, // AuthService needs SettingsService
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -36,6 +46,7 @@ import { Jwt2faStrategy } from './strategies/jwt-2fa.stategy';
     AuditModule,
     MongooseModule.forFeature([
       { name: PasswordResetToken.name, schema: PasswordResetTokenSchema },
+      { name: TwoFactorToken.name, schema: TwoFactorTokenSchema },
     ]),
   ],
   controllers: [AuthController],

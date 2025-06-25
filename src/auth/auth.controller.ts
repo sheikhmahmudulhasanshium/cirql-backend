@@ -12,12 +12,8 @@ import {
   Post,
   HttpCode,
   Body,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { AuthService, AuthTokenResponse, SanitizedUser } from './auth.service';
-import { ConfigService } from '@nestjs/config';
-import { UserDocument } from '../users/schemas/user.schema';
 import {
   ApiTags,
   ApiOperation,
@@ -25,17 +21,22 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { Request as ExpressRequest } from 'express';
-import { TwoFactorCodeDto } from './dto/two-factor-code.dto';
+
+import { AuthService, AuthTokenResponse, SanitizedUser } from './auth.service';
+import { ConfigService } from '@nestjs/config';
+import { UserDocument } from '../users/schemas/user.schema';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { LoginDto } from './dto/login.dto';
+import { Login2faDto } from './dto/login-2fa.dto';
+import { Disable2faDto } from './dto/disable-2fa.dto';
 
 interface OAuthState {
   finalRedirectUri?: string;
 }
 
-// A simple, type-safe interface for the request object in the Google callback.
-// No external dependencies needed.
+// A simple, type-safe interface for the Google callback request
 interface GoogleCallbackRequest extends ExpressRequest {
   query: {
     state?: string;
@@ -51,88 +52,55 @@ export class AuthController {
     private readonly configService: ConfigService,
   ) {}
 
-  @Post('2fa/generate')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Generate a new 2FA secret and QR code for setup' })
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Log in with email and password' })
   @ApiResponse({
-    status: 201,
-    description:
-      'Returns a data URL for a QR code to be displayed to the user.',
+    status: 200,
+    description: 'Login successful (for non-2FA users) OR 2FA is required.',
   })
-  async generate2faSecret(@CurrentUser() user: UserDocument) {
-    const { otpAuthUrl } = await this.authService.generateTwoFactorSecret(user);
-    const qrCodeDataUrl =
-      await this.authService.generateQrCodeDataURL(otpAuthUrl);
-    return { qrCodeDataUrl };
+  @ApiResponse({ status: 401, description: 'Invalid credentials.' })
+  login(@Body() loginDto: LoginDto) {
+    return this.authService.login(loginDto);
+  }
+
+  @Post('2fa/verify-code')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Verify the 2FA email code to complete the login process',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful.',
+  })
+  @ApiResponse({ status: 401, description: 'Invalid or expired code.' })
+  async loginWith2faCode(
+    @Body() login2faDto: Login2faDto,
+  ): Promise<AuthTokenResponse> {
+    return this.authService.loginWith2faCode(login2faDto);
   }
 
   @Post('2fa/enable')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Enable 2FA by verifying the first code' })
-  @ApiResponse({
-    status: 201,
-    description: '2FA enabled. Returns a list of single-use backup codes.',
-  })
-  async enable2fa(
-    @CurrentUser() user: UserDocument,
-    @Body() { code }: TwoFactorCodeDto,
-  ) {
-    const { backupCodes } = await this.authService.enableTwoFactorAuth(
-      user,
-      code,
-    );
-    return {
-      message:
-        '2FA has been successfully enabled. Please save these backup codes securely! They will not be shown again.',
-      backupCodes,
-    };
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Enable email-based 2FA for the current user' })
+  async enable2fa(@CurrentUser() user: UserDocument) {
+    await this.authService.enableTwoFactorAuth(user);
+    return { message: 'Two-factor authentication has been enabled.' };
   }
 
   @Post('2fa/disable')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Disable 2FA by providing a valid 2FA code' })
-  @ApiResponse({
-    status: 200,
-    description: '2FA has been successfully disabled.',
-  })
+  @ApiOperation({ summary: 'Disable email-based 2FA by providing password' })
   async disable2fa(
     @CurrentUser() user: UserDocument,
-    @Body() { code }: TwoFactorCodeDto,
+    @Body() disable2faDto: Disable2faDto,
   ) {
-    await this.authService.disableTwoFactorAuth(user, code);
-    return {
-      message: 'Two-factor authentication has been successfully disabled.',
-    };
-  }
-
-  @Post('2fa/authenticate')
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(AuthGuard('jwt-2fa'))
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Verify the 2FA code to complete the login process',
-    description:
-      'This endpoint requires the temporary token from the initial login step.',
-  })
-  @ApiResponse({
-    status: 200,
-    description:
-      'Login successful. Returns the full access token and user profile.',
-  })
-  async authenticate2fa(
-    @CurrentUser() user: UserDocument,
-    @Body() { code }: TwoFactorCodeDto,
-  ): Promise<AuthTokenResponse> {
-    const isCodeValid = await this.authService.isTwoFactorCodeValid(code, user);
-    if (!isCodeValid) {
-      throw new UnauthorizedException('Invalid authentication code.');
-    }
-    return this.authService.loginWith2fa(user);
+    await this.authService.disableTwoFactorAuth(user, disable2faDto);
+    return { message: 'Two-factor authentication has been disabled.' };
   }
 
   @Get('google')
@@ -145,13 +113,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Google OAuth callback URL' })
   @Redirect()
   googleAuthRedirect(
+    // <-- REMOVED `async` as it is not needed
     @CurrentUser() user: UserDocument,
-    @Req() req: GoogleCallbackRequest, // <-- Use the corrected, simple interface
+    @Req() req: GoogleCallbackRequest, // <-- FIX 1: Use the type-safe interface
   ) {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     let defaultSuccessUrl = `${frontendUrl}/auth/google/callback`;
-    const default2faUrl = `${frontendUrl}/log-in/verify-2fa`;
-    const state = req.query.state; // <-- This is now fully type-safe
+    const state = req.query.state; // This is now safe
+
     if (state) {
       try {
         const decodedState = JSON.parse(
@@ -164,22 +133,19 @@ export class AuthController {
         this.logger.warn('Could not parse OAuth state parameter.');
       }
     }
+
     if (!user) {
       this.logger.error('User object not found on request after Google OAuth.');
       const errorUrl = new URL(`${frontendUrl}/sign-in`);
       errorUrl.searchParams.set('error', 'authenticationFailed');
       return { url: errorUrl.toString() };
     }
-    const authResult = this.authService.login(user);
-    if ('isTwoFactorRequired' in authResult && authResult.isTwoFactorRequired) {
-      const redirectUrl = new URL(default2faUrl);
-      redirectUrl.searchParams.set('token', authResult.accessToken);
-      return { url: redirectUrl.toString() };
-    } else {
-      const redirectUrl = new URL(defaultSuccessUrl);
-      redirectUrl.searchParams.set('token', authResult.accessToken);
-      return { url: redirectUrl.toString() };
-    }
+
+    // FIX 2: Removed `await` from a synchronous function call
+    const authResult = this.authService.getFullAccessToken(user);
+    const redirectUrl = new URL(defaultSuccessUrl);
+    redirectUrl.searchParams.set('token', authResult.accessToken);
+    return { url: redirectUrl.toString() };
   }
 
   @Post('forgot-password')

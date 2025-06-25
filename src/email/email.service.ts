@@ -36,7 +36,6 @@ export class EmailService {
     return this.configService.get<string>('GMAIL_USER')!;
   }
 
-  // --- THIS IS THE NEW, CENTRALIZED SIGNATURE METHOD, UPDATED WITH YOUR CONTENT ---
   private getEmailSignature(): string {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
 
@@ -54,6 +53,64 @@ export class EmailService {
         This is an automated message. For support, please use the contact form on our website.
       </p>
     `;
+  }
+
+  async sendTwoFactorLoginCodeEmail(
+    email: string,
+    code: string,
+  ): Promise<void> {
+    const mailOptions = {
+      from: `"Cirql" <${this.getAdminEmail()}>`,
+      to: email,
+      subject: 'Your Cirql Login Code',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+          <h2 style="color: #1A1A2E;">Your Two-Factor Login Code</h2>
+          <p>Please use the following code to complete your login. This code is valid for 10 minutes.</p>
+          <p style="font-size: 24px; font-weight: bold; text-align: center; letter-spacing: 5px; margin: 20px 0; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">
+            ${code}
+          </p>
+          <p>If you did not request this code, you can safely ignore this email.</p>
+          <br>
+          <hr style="border: none; border-top: 1px solid #eeeeee;">
+          ${this.getEmailSignature()}
+        </div>
+      `,
+    };
+    try {
+      await this.transporter.sendMail(mailOptions);
+      this.logger.log(`2FA login code email sent to: ${email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send 2FA login code to ${email}`, error);
+    }
+  }
+
+  async sendWelcomeEmail(email: string, name: string): Promise<void> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const mailOptions = {
+      from: `"Cirql" <${this.getAdminEmail()}>`,
+      to: email,
+      subject: 'Welcome to Cirql! 🎉',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+          <h2 style="color: #1A1A2E;">Welcome, ${name}!</h2>
+          <p>We're thrilled to have you join the Cirql community. We are a platform designed to help you stay in the loop with the people and topics that matter most to you.</p>
+          <p>You can start by exploring your profile, connecting with friends, or checking out the latest announcements.</p>
+          <p style="text-align: center; margin: 20px 0;">
+            <a href="${frontendUrl}" style="background-color: #3F8CFF; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">Go to Your Dashboard</a>
+          </p>
+          <br>
+          <hr style="border: none; border-top: 1px solid #eeeeee;">
+          ${this.getEmailSignature()}
+        </div>
+      `,
+    };
+    try {
+      await this.transporter.sendMail(mailOptions);
+      this.logger.log(`Welcome email sent to: ${email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send welcome email to ${email}`, error);
+    }
   }
 
   async sendPasswordResetEmail(email: string, token: string): Promise<void> {

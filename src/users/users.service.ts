@@ -1,5 +1,3 @@
-// src/users/users.service.ts
-
 import {
   Injectable,
   NotFoundException,
@@ -52,54 +50,44 @@ export class UsersService {
     private readonly emailService: EmailService,
   ) {}
 
-  async findByIdWith2FASecret(id: string): Promise<UserDocument | null> {
-    return this.userModel.findById(id).select('+twoFactorAuthSecret').exec();
+  async findById(id: string | Types.ObjectId): Promise<UserDocument | null> {
+    return this.userModel.findById(id).exec();
   }
+
+  async findByIdWith2FASecret(id: string): Promise<UserDocument | null> {
+    // This method is now obsolete but kept to avoid breaking other old dependencies.
+    // In a real refactor, you'd remove calls to this and delete it.
+    return this.userModel.findById(id).exec();
+  }
+
+  async findOneByEmail(email: string): Promise<UserDocument | null> {
+    return this.userModel
+      .findOne({ email: email.toLowerCase() })
+      .select('+password')
+      .exec();
+  }
+
+  async findOneByGoogleId(googleId: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ googleId }).exec();
+  }
+
+  async create(userData: Partial<User>): Promise<UserDocument> {
+    const newUser = new this.userModel(userData);
+    return newUser.save();
+  }
+
   async updateLastLogin(userId: Types.ObjectId): Promise<void> {
     await this.userModel.updateOne({ _id: userId }, { lastLogin: new Date() });
   }
-  async setTwoFactorSecret(
+
+  async set2FA(
     userId: string,
-    secret: string,
+    isEnabled: boolean,
   ): Promise<UserDocument | null> {
     return this.userModel.findByIdAndUpdate(
       userId,
-      { twoFactorAuthSecret: secret, is2FAEnabled: false },
+      { is2FAEnabled: isEnabled },
       { new: true },
-    );
-  }
-  async enable2FA(
-    userId: string,
-    hashedBackupCodes: string[],
-  ): Promise<UserDocument | null> {
-    return this.userModel.findByIdAndUpdate(
-      userId,
-      { is2FAEnabled: true, twoFactorAuthBackupCodes: hashedBackupCodes },
-      { new: true },
-    );
-  }
-  async disable2FA(userId: string): Promise<UserDocument | null> {
-    return this.userModel.findByIdAndUpdate(
-      userId,
-      {
-        is2FAEnabled: false,
-        $unset: { twoFactorAuthSecret: '', twoFactorAuthBackupCodes: '' },
-      },
-      { new: true },
-    );
-  }
-  async invalidateBackupCode(
-    userId: Types.ObjectId,
-    codeIndex: number,
-  ): Promise<void> {
-    const unsetField = `twoFactorAuthBackupCodes.${codeIndex}`;
-    await this.userModel.updateOne(
-      { _id: userId },
-      { $unset: { [unsetField]: 1 } },
-    );
-    await this.userModel.updateOne(
-      { _id: userId },
-      { $pull: { twoFactorAuthBackupCodes: null } },
     );
   }
 
@@ -270,20 +258,6 @@ export class UsersService {
     });
 
     return unbannedUser;
-  }
-
-  async findById(id: string | Types.ObjectId): Promise<UserDocument | null> {
-    return this.userModel.findById(id).exec();
-  }
-  async findOneByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email: email.toLowerCase() }).exec();
-  }
-  async findOneByGoogleId(googleId: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ googleId }).exec();
-  }
-  async create(userData: Partial<User>): Promise<UserDocument> {
-    const newUser = new this.userModel(userData);
-    return newUser.save();
   }
 
   async update(

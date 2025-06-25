@@ -13,11 +13,10 @@ import { AuthService } from '../auth.service';
 import { UserDocument } from '../../users/schemas/user.schema';
 import { OAuth2Client } from 'google-auth-library';
 
-// This interface correctly handles the type mismatch.
-// It removes the conflicting properties from the base `GoogleProfile`
-// and re-declares them with types that match the actual (optional) data.
-interface EnrichedGoogleProfile
-  extends Omit<GoogleProfile, 'name' | 'emails' | 'photos'> {
+// This is an interface describing the shape we expect the profile to have.
+// It doesn't extend, it just defines.
+interface EnrichedGoogleProfile {
+  displayName: string;
   name?: {
     familyName?: string;
     givenName?: string;
@@ -65,9 +64,14 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   async validate(
     accessToken: string,
     refreshToken: string,
-    profile: EnrichedGoogleProfile, // <-- Use the corrected interface
+    profile: GoogleProfile, // <-- Use the base type from the library
   ): Promise<UserDocument> {
-    this.logger.debug(`Validating Google profile for: ${profile.displayName}`);
+    // Cast to our enriched type here for safe access.
+    const enrichedProfile = profile as EnrichedGoogleProfile;
+
+    this.logger.debug(
+      `Validating Google profile for: ${enrichedProfile.displayName}`,
+    );
 
     try {
       const tokenInfo = await this.googleClient.getTokenInfo(accessToken);
@@ -80,10 +84,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         );
       }
 
-      // Access is now fully type-safe, no `any` cast needed.
-      const firstName = profile.name?.givenName;
-      const lastName = profile.name?.familyName;
-      const picture = profile.photos?.[0]?.value;
+      const firstName = enrichedProfile.name?.givenName;
+      const lastName = enrichedProfile.name?.familyName;
+      const picture = enrichedProfile.photos?.[0]?.value;
 
       const user = await this.authService.validateOAuthLogin(
         googleId,

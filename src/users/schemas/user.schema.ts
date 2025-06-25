@@ -1,5 +1,3 @@
-// src/users/schemas/user.schema.ts
-
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -51,12 +49,6 @@ export class User {
   @ApiProperty({ description: 'Indicates if 2FA is enabled' })
   @Prop({ default: false })
   is2FAEnabled: boolean;
-
-  @Prop({ required: false, select: false })
-  twoFactorAuthSecret?: string;
-
-  @Prop({ type: [String], required: false, select: false })
-  twoFactorAuthBackupCodes?: string[];
 
   @ApiProperty({
     description: 'Account status (e.g., active, inactive, banned)',
