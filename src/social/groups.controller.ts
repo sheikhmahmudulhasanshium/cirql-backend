@@ -1,4 +1,4 @@
-// FILE: src/social/groups.controller.ts
+// src/social/groups.controller.ts
 import {
   Controller,
   Post,
@@ -16,7 +16,6 @@ import { Request } from 'express';
 import { GroupsService } from './groups.service';
 import { UserDocument } from '../users/schemas/user.schema';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
-import { Types } from 'mongoose';
 
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
@@ -39,7 +38,7 @@ export class GroupsController {
     @Req() req: AuthenticatedRequest,
     @Body() createGroupDto: CreateGroupDto,
   ) {
-    const ownerId = req.user._id.toString(); // <-- FIX
+    const ownerId = req.user._id.toString();
     return { message: 'Create group endpoint', ownerId, ...createGroupDto };
   }
 
@@ -47,14 +46,14 @@ export class GroupsController {
   @ApiOperation({ summary: 'Update a group you own' })
   updateGroup(
     @Req() req: AuthenticatedRequest,
-    @Param('groupId', ParseObjectIdPipe) groupId: Types.ObjectId,
+    @Param('groupId', ParseObjectIdPipe) groupId: string,
     @Body() updateGroupDto: UpdateGroupDto,
   ) {
-    const ownerId = req.user._id.toString(); // <-- FIX
+    const ownerId = req.user._id.toString();
     return {
       message: 'Update group endpoint',
       ownerId,
-      groupId: groupId.toString(), // <-- FIX
+      groupId,
       ...updateGroupDto,
     };
   }
@@ -63,14 +62,14 @@ export class GroupsController {
   @ApiOperation({ summary: 'Add a member to a group' })
   addMember(
     @Req() req: AuthenticatedRequest,
-    @Param('groupId', ParseObjectIdPipe) groupId: Types.ObjectId,
+    @Param('groupId', ParseObjectIdPipe) groupId: string,
     @Body() manageGroupMemberDto: ManageGroupMemberDto,
   ) {
-    const requesterId = req.user._id.toString(); // <-- FIX
+    const requesterId = req.user._id.toString();
     return {
       message: 'Add member endpoint',
       requesterId,
-      groupId: groupId.toString(), // <-- FIX
+      groupId,
       ...manageGroupMemberDto,
     };
   }
@@ -79,15 +78,15 @@ export class GroupsController {
   @ApiOperation({ summary: 'Remove a member from a group' })
   removeMember(
     @Req() req: AuthenticatedRequest,
-    @Param('groupId', ParseObjectIdPipe) groupId: Types.ObjectId,
-    @Param('memberId', ParseObjectIdPipe) memberId: Types.ObjectId,
+    @Param('groupId', ParseObjectIdPipe) groupId: string,
+    @Param('memberId', ParseObjectIdPipe) memberId: string,
   ) {
-    const requesterId = req.user._id.toString(); // <-- FIX
+    const requesterId = req.user._id.toString();
     return {
       message: 'Remove member endpoint',
       requesterId,
-      groupId: groupId.toString(), // <-- FIX
-      memberId: memberId.toString(), // <-- FIX
+      groupId,
+      memberId,
     };
   }
 }

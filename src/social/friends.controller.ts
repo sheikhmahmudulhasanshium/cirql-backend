@@ -1,4 +1,4 @@
-// FILE: src/social/friends.controller.ts
+// src/social/friends.controller.ts
 import {
   Controller,
   Post,
@@ -15,7 +15,6 @@ import { FriendsService } from './friends.service';
 import { UserDocument } from '../users/schemas/user.schema';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { Types } from 'mongoose';
 import { Request } from 'express';
 import { SendFriendRequestDto } from './dto/send-friend-request.dto';
 
@@ -37,7 +36,7 @@ export class FriendsController {
     @Body() sendRequestDto: SendFriendRequestDto,
   ) {
     return this.friendsService.sendRequest(
-      req.user._id.toString(), // <-- FIX
+      req.user._id.toString(),
       sendRequestDto.recipientId,
     );
   }
@@ -46,11 +45,11 @@ export class FriendsController {
   @ApiOperation({ summary: 'Accept a pending friend request' })
   acceptRequest(
     @Req() req: AuthenticatedRequest,
-    @Param('requestId', ParseObjectIdPipe) requestId: Types.ObjectId,
+    @Param('requestId', ParseObjectIdPipe) requestId: string,
   ) {
     return this.friendsService.acceptRequest(
-      requestId.toString(), // <-- FIX
-      req.user._id.toString(), // <-- FIX
+      requestId,
+      req.user._id.toString(),
     );
   }
 
@@ -58,11 +57,11 @@ export class FriendsController {
   @ApiOperation({ summary: 'Reject a pending friend request' })
   rejectRequest(
     @Req() req: AuthenticatedRequest,
-    @Param('requestId', ParseObjectIdPipe) requestId: Types.ObjectId,
+    @Param('requestId', ParseObjectIdPipe) requestId: string,
   ) {
     return this.friendsService.rejectRequest(
-      requestId.toString(), // <-- FIX
-      req.user._id.toString(), // <-- FIX
+      requestId,
+      req.user._id.toString(),
     );
   }
 
@@ -70,18 +69,15 @@ export class FriendsController {
   @ApiOperation({ summary: 'Remove a user from your friends list' })
   removeFriend(
     @Req() req: AuthenticatedRequest,
-    @Param('friendId', ParseObjectIdPipe) friendId: Types.ObjectId,
+    @Param('friendId', ParseObjectIdPipe) friendId: string,
   ) {
-    return this.friendsService.removeFriend(
-      req.user._id.toString(), // <-- FIX
-      friendId.toString(), // <-- FIX
-    );
+    return this.friendsService.removeFriend(req.user._id.toString(), friendId);
   }
 
   @Get('list')
   @ApiOperation({ summary: 'Get the current user`s friends list' })
   getFriends(@Req() req: AuthenticatedRequest) {
-    return this.friendsService.getFriends(req.user._id.toString()); // <-- FIX
+    return this.friendsService.getFriends(req.user._id.toString());
   }
 
   @Get('requests/pending')
@@ -89,6 +85,6 @@ export class FriendsController {
     summary: 'Get all pending friend requests for the current user',
   })
   getPendingRequests(@Req() req: AuthenticatedRequest) {
-    return this.friendsService.getPendingRequests(req.user._id.toString()); // <-- FIX
+    return this.friendsService.getPendingRequests(req.user._id.toString());
   }
 }

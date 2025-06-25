@@ -1,4 +1,4 @@
-// FILE: src/social/followers.controller.ts
+// src/social/followers.controller.ts
 import {
   Controller,
   Post,
@@ -13,7 +13,6 @@ import { FollowersService } from './followers.service';
 import { UserDocument } from '../users/schemas/user.schema';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { Types } from 'mongoose';
 import { Request } from 'express';
 
 interface AuthenticatedRequest extends Request {
@@ -31,26 +30,23 @@ export class FollowersController {
   @ApiOperation({ summary: 'Follow another user' })
   follow(
     @Req() req: AuthenticatedRequest,
-    @Param('userIdToFollow', ParseObjectIdPipe) userIdToFollow: Types.ObjectId,
+    @Param('userIdToFollow', ParseObjectIdPipe) userIdToFollow: string,
   ) {
-    const user = req.user;
     return this.followersService.follow(
-      user._id.toString(),
-      userIdToFollow.toString(),
+      req.user._id.toString(),
+      userIdToFollow,
     );
   }
 
   @Delete('unfollow/:userIdToUnfollow')
   @ApiOperation({ summary: 'Unfollow another user' })
   unfollow(
-    @Req() req: AuthenticatedRequest, // <-- FIX THE TYPO
-    @Param('userIdToUnfollow', ParseObjectIdPipe)
-    userIdToUnfollow: Types.ObjectId,
+    @Req() req: AuthenticatedRequest,
+    @Param('userIdToUnfollow', ParseObjectIdPipe) userIdToUnfollow: string,
   ) {
-    const user = req.user;
     return this.followersService.unfollow(
-      user._id.toString(),
-      userIdToUnfollow.toString(),
+      req.user._id.toString(),
+      userIdToUnfollow,
     );
   }
 
@@ -58,15 +54,15 @@ export class FollowersController {
   @ApiOperation({
     summary: 'Get a list of users who follow the specified user',
   })
-  getFollowers(@Param('userId', ParseObjectIdPipe) userId: Types.ObjectId) {
-    return this.followersService.getFollowers(userId.toString());
+  getFollowers(@Param('userId', ParseObjectIdPipe) userId: string) {
+    return this.followersService.getFollowers(userId);
   }
 
   @Get('users/:userId/following')
   @ApiOperation({
     summary: 'Get a list of users the specified user is following',
   })
-  getFollowing(@Param('userId', ParseObjectIdPipe) userId: Types.ObjectId) {
-    return this.followersService.getFollowing(userId.toString());
+  getFollowing(@Param('userId', ParseObjectIdPipe) userId: string) {
+    return this.followersService.getFollowing(userId);
   }
 }

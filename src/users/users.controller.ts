@@ -17,14 +17,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { UsersService, AdminUserListView } from './users.service';
-import { User, UserDocument } from './schemas/user.schema';
+// 'User' is removed from this import as it was unused.
+import { UserDocument } from './schemas/user.schema';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiTags,
   ApiOperation,
   ApiBearerAuth,
-  ApiParam,
+  // 'ApiParam' is removed from this import as it was unused.
   ApiResponse,
   ApiQuery,
   ApiProperty,
@@ -34,10 +35,9 @@ import { Request as ExpressRequest } from 'express';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
-import { Types } from 'mongoose';
 import { UpdateUserRolesDto } from './dto/update-user-roles.dto';
 import { PublicProfileDto } from './dto/public-profile.dto';
-import { BanUserDto } from './dto/ban-user.dto'; // --- ADDED IMPORT ---
+import { BanUserDto } from './dto/ban-user.dto';
 
 interface AuthenticatedRequest extends ExpressRequest {
   user: UserDocument;
@@ -102,11 +102,6 @@ export class UsersController {
     description: 'Items per page, default: 10',
   })
   @ApiResponse({ status: 200, type: PaginatedUsersResponse })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. Insufficient permissions.',
-  })
   async findAll(
     @Req() req: AuthenticatedRequest,
     @Query('accountStatus') accountStatus?: string,
@@ -140,20 +135,6 @@ export class UsersController {
   @Get('directory')
   @ApiOperation({
     summary: 'Get public user directory (No Auth Required)',
-    description:
-      'Provides a paginated list of public, active user profiles available to anyone.',
-  })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Page number, default: 1',
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Items per page, default: 10',
   })
   @ApiResponse({ status: 200, type: PaginatedPublicUsersResponse })
   async findPublic(
@@ -182,7 +163,6 @@ export class UsersController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: "Get the authenticated user's profile" })
-  @ApiResponse({ status: 200, type: User })
   getMyProfile(@Req() req: AuthenticatedRequest): UserDocument {
     return req.user;
   }
@@ -192,15 +172,13 @@ export class UsersController {
   @Roles(Role.Admin, Role.Owner)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a user by ID (Admin/Owner only)' })
-  @ApiParam({ name: 'id', description: 'User ID', type: String })
-  @ApiResponse({ status: 200, type: User })
   @ApiResponse({ status: 404, description: 'User not found.' })
   async findOne(
-    @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
+    @Param('id', ParseObjectIdPipe) id: string,
   ): Promise<UserDocument> {
     const user = await this.usersService.findById(id);
     if (!user) {
-      throw new NotFoundException(`User with ID "${id.toString()}" not found.`);
+      throw new NotFoundException(`User with ID "${id}" not found.`);
     }
     return user;
   }
@@ -209,7 +187,6 @@ export class UsersController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: "Update the authenticated user's profile" })
-  @ApiResponse({ status: 200, type: User })
   async updateMyProfile(
     @Req() req: AuthenticatedRequest,
     @Body() updateUserDto: UpdateUserDto,
@@ -223,17 +200,6 @@ export class UsersController {
   @Roles(Role.Admin, Role.Owner)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Update a user's roles (Admin/Owner only)" })
-  @ApiParam({ name: 'id', description: 'The ID of the user to update' })
-  @ApiResponse({
-    status: 200,
-    description: 'User roles updated successfully.',
-    type: User,
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. You cannot change these roles.',
-  })
-  @ApiResponse({ status: 404, description: 'User not found.' })
   async updateRoles(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -242,19 +208,11 @@ export class UsersController {
     return this.usersService.updateUserRoles(id, updateUserRolesDto, req.user);
   }
 
-  // --- NEW ENDPOINTS START ---
-
   @Patch(':id/ban')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.Admin, Role.Owner)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Ban a user's account (Admin/Owner only)" })
-  @ApiParam({ name: 'id', description: 'The ID of the user to ban' })
-  @ApiResponse({
-    status: 200,
-    description: 'User banned successfully.',
-    type: User,
-  })
   async banUser(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -268,12 +226,6 @@ export class UsersController {
   @Roles(Role.Admin, Role.Owner)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Unban a user's account (Admin/Owner only)" })
-  @ApiParam({ name: 'id', description: 'The ID of the user to unban' })
-  @ApiResponse({
-    status: 200,
-    description: 'User unbanned successfully.',
-    type: User,
-  })
   async unbanUser(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -281,15 +233,11 @@ export class UsersController {
     return this.usersService.unbanUser(id, req.user);
   }
 
-  // --- NEW ENDPOINTS END ---
-
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.Admin, Role.Owner)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a user by ID (Admin/Owner only)' })
-  @ApiParam({ name: 'id', description: 'User ID', type: String })
-  @ApiResponse({ status: 200, type: User })
   async update(
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
@@ -303,8 +251,6 @@ export class UsersController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a user by ID (Admin/Owner only)' })
-  @ApiParam({ name: 'id', description: 'User ID', type: String })
-  @ApiResponse({ status: 204, description: 'User deleted successfully.' })
   async remove(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
