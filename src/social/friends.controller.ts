@@ -8,7 +8,7 @@ import {
   Param,
   UseGuards,
   Req,
-  Body, // CHANGED: Import Body
+  Body,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FriendsService } from './friends.service';
@@ -30,19 +30,17 @@ interface AuthenticatedRequest extends Request {
 export class FriendsController {
   constructor(private readonly friendsService: FriendsService) {}
 
-  // --- THIS METHOD HAS BEEN UPDATED ---
-  @Post('request') // CHANGED: Path parameter removed from the route
+  @Post('request')
   @ApiOperation({ summary: 'Send a friend request to another user' })
   sendRequest(
     @Req() req: AuthenticatedRequest,
-    @Body() sendRequestDto: SendFriendRequestDto, // CHANGED: Use @Body with the DTO
+    @Body() sendRequestDto: SendFriendRequestDto,
   ) {
     return this.friendsService.sendRequest(
-      req.user._id.toHexString(),
-      sendRequestDto.recipientId, // CHANGED: Get the ID from the DTO body
+      req.user._id.toString(), // <-- FIX
+      sendRequestDto.recipientId,
     );
   }
-  // --- NO CHANGES TO THE METHODS BELOW ---
 
   @Patch('requests/:requestId/accept')
   @ApiOperation({ summary: 'Accept a pending friend request' })
@@ -51,8 +49,8 @@ export class FriendsController {
     @Param('requestId', ParseObjectIdPipe) requestId: Types.ObjectId,
   ) {
     return this.friendsService.acceptRequest(
-      requestId.toHexString(),
-      req.user._id.toHexString(),
+      requestId.toString(), // <-- FIX
+      req.user._id.toString(), // <-- FIX
     );
   }
 
@@ -63,8 +61,8 @@ export class FriendsController {
     @Param('requestId', ParseObjectIdPipe) requestId: Types.ObjectId,
   ) {
     return this.friendsService.rejectRequest(
-      requestId.toHexString(),
-      req.user._id.toHexString(),
+      requestId.toString(), // <-- FIX
+      req.user._id.toString(), // <-- FIX
     );
   }
 
@@ -75,15 +73,15 @@ export class FriendsController {
     @Param('friendId', ParseObjectIdPipe) friendId: Types.ObjectId,
   ) {
     return this.friendsService.removeFriend(
-      req.user._id.toHexString(),
-      friendId.toHexString(),
+      req.user._id.toString(), // <-- FIX
+      friendId.toString(), // <-- FIX
     );
   }
 
   @Get('list')
   @ApiOperation({ summary: 'Get the current user`s friends list' })
   getFriends(@Req() req: AuthenticatedRequest) {
-    return this.friendsService.getFriends(req.user._id.toHexString());
+    return this.friendsService.getFriends(req.user._id.toString()); // <-- FIX
   }
 
   @Get('requests/pending')
@@ -91,6 +89,6 @@ export class FriendsController {
     summary: 'Get all pending friend requests for the current user',
   })
   getPendingRequests(@Req() req: AuthenticatedRequest) {
-    return this.friendsService.getPendingRequests(req.user._id.toHexString());
+    return this.friendsService.getPendingRequests(req.user._id.toString()); // <-- FIX
   }
 }

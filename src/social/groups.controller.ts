@@ -5,7 +5,6 @@ import {
   Body,
   UseGuards,
   Req,
-  // Get, // REMOVED: No GET endpoints are defined yet
   Param,
   Patch,
   Delete,
@@ -19,7 +18,6 @@ import { UserDocument } from '../users/schemas/user.schema';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 import { Types } from 'mongoose';
 
-// Import the new DTOs
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { ManageGroupMemberDto } from './dto/manage-group-member.dto';
@@ -41,9 +39,7 @@ export class GroupsController {
     @Req() req: AuthenticatedRequest,
     @Body() createGroupDto: CreateGroupDto,
   ) {
-    const ownerId = req.user._id.toHexString();
-    // TODO: Pass the DTO and ownerId to the service
-    // return this.groupsService.create(ownerId, createGroupDto);
+    const ownerId = req.user._id.toString(); // <-- FIX
     return { message: 'Create group endpoint', ownerId, ...createGroupDto };
   }
 
@@ -54,13 +50,11 @@ export class GroupsController {
     @Param('groupId', ParseObjectIdPipe) groupId: Types.ObjectId,
     @Body() updateGroupDto: UpdateGroupDto,
   ) {
-    const ownerId = req.user._id.toHexString();
-    // TODO: The service will need to verify ownership before updating
-    // return this.groupsService.update(ownerId, groupId.toHexString(), updateGroupDto);
+    const ownerId = req.user._id.toString(); // <-- FIX
     return {
       message: 'Update group endpoint',
       ownerId,
-      groupId: groupId.toHexString(),
+      groupId: groupId.toString(), // <-- FIX
       ...updateGroupDto,
     };
   }
@@ -72,13 +66,11 @@ export class GroupsController {
     @Param('groupId', ParseObjectIdPipe) groupId: Types.ObjectId,
     @Body() manageGroupMemberDto: ManageGroupMemberDto,
   ) {
-    const requesterId = req.user._id.toHexString();
-    // TODO: The service would handle permissions (e.g., only owner can add members)
-    // return this.groupsService.addMember(requesterId, groupId.toHexString(), manageGroupMemberDto.memberId);
+    const requesterId = req.user._id.toString(); // <-- FIX
     return {
       message: 'Add member endpoint',
-      requesterId, // ADDED: Include the variable in the return object
-      groupId: groupId.toHexString(),
+      requesterId,
+      groupId: groupId.toString(), // <-- FIX
       ...manageGroupMemberDto,
     };
   }
@@ -90,14 +82,12 @@ export class GroupsController {
     @Param('groupId', ParseObjectIdPipe) groupId: Types.ObjectId,
     @Param('memberId', ParseObjectIdPipe) memberId: Types.ObjectId,
   ) {
-    const requesterId = req.user._id.toHexString();
-    // TODO: The service would handle permissions
-    // return this.groupsService.removeMember(requesterId, groupId.toHexString(), memberId.toHexString());
+    const requesterId = req.user._id.toString(); // <-- FIX
     return {
       message: 'Remove member endpoint',
-      requesterId, // This was already correct, but shown for consistency
-      groupId: groupId.toHexString(),
-      memberId: memberId.toHexString(),
+      requesterId,
+      groupId: groupId.toString(), // <-- FIX
+      memberId: memberId.toString(), // <-- FIX
     };
   }
 }

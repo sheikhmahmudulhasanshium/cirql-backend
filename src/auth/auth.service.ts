@@ -24,12 +24,11 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { EncryptionService } from './encryption.service';
-import { authenticator } from 'otplib';
+import { authenticator } from 'otplib'; // <-- THE CORRECT FIX
 import * as qrcode from 'qrcode';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/schemas/audit-log.schema';
 
-// --- THIS INTERFACE IS CORRECTED ---
 export interface SanitizedUser {
   _id: Types.ObjectId;
   email: string | undefined;
@@ -84,7 +83,6 @@ export class AuthService {
     return this.getFullAccessToken(user);
   }
 
-  // --- THIS METHOD IS CORRECTED ---
   private getFullAccessToken(user: UserDocument): AuthTokenResponse {
     const payload = {
       email: user.email,
@@ -101,8 +99,8 @@ export class AuthService {
       picture: user.picture,
       roles: user.roles,
       is2FAEnabled: user.is2FAEnabled,
-      accountStatus: user.accountStatus, // <-- Added
-      banReason: user.banReason, // <-- Added
+      accountStatus: user.accountStatus,
+      banReason: user.banReason,
     };
     return { accessToken, user: sanitizedUser };
   }

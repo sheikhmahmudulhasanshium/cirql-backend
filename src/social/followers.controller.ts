@@ -6,18 +6,16 @@ import {
   Get,
   Param,
   UseGuards,
-  Req, // Import Req
+  Req,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FollowersService } from './followers.service';
-// import { CurrentUser } from '../auth/decorators/current-user.decorator'; // Custom decorator is removed
 import { UserDocument } from '../users/schemas/user.schema';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Types } from 'mongoose';
-import { Request } from 'express'; // Import Request
+import { Request } from 'express';
 
-// Define the shape of the request object after Passport attaches the user
 interface AuthenticatedRequest extends Request {
   user: UserDocument;
 }
@@ -32,27 +30,27 @@ export class FollowersController {
   @Post('follow/:userIdToFollow')
   @ApiOperation({ summary: 'Follow another user' })
   follow(
-    @Req() req: AuthenticatedRequest, // Use @Req() to get the full request
+    @Req() req: AuthenticatedRequest,
     @Param('userIdToFollow', ParseObjectIdPipe) userIdToFollow: Types.ObjectId,
   ) {
-    const user = req.user; // Access the user from the request object
+    const user = req.user;
     return this.followersService.follow(
-      user._id.toHexString(),
-      userIdToFollow.toHexString(),
+      user._id.toString(),
+      userIdToFollow.toString(),
     );
   }
 
   @Delete('unfollow/:userIdToUnfollow')
   @ApiOperation({ summary: 'Unfollow another user' })
   unfollow(
-    @Req() req: AuthenticatedRequest, // Use @Req()
+    @Req() req: AuthenticatedRequest, // <-- FIX THE TYPO
     @Param('userIdToUnfollow', ParseObjectIdPipe)
     userIdToUnfollow: Types.ObjectId,
   ) {
-    const user = req.user; // Access the user from the request object
+    const user = req.user;
     return this.followersService.unfollow(
-      user._id.toHexString(),
-      userIdToUnfollow.toHexString(),
+      user._id.toString(),
+      userIdToUnfollow.toString(),
     );
   }
 
@@ -61,7 +59,7 @@ export class FollowersController {
     summary: 'Get a list of users who follow the specified user',
   })
   getFollowers(@Param('userId', ParseObjectIdPipe) userId: Types.ObjectId) {
-    return this.followersService.getFollowers(userId.toHexString());
+    return this.followersService.getFollowers(userId.toString());
   }
 
   @Get('users/:userId/following')
@@ -69,6 +67,6 @@ export class FollowersController {
     summary: 'Get a list of users the specified user is following',
   })
   getFollowing(@Param('userId', ParseObjectIdPipe) userId: Types.ObjectId) {
-    return this.followersService.getFollowing(userId.toHexString());
+    return this.followersService.getFollowing(userId.toString());
   }
 }

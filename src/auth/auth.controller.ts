@@ -34,6 +34,14 @@ interface OAuthState {
   finalRedirectUri?: string;
 }
 
+// A simple, type-safe interface for the request object in the Google callback.
+// No external dependencies needed.
+interface GoogleCallbackRequest extends ExpressRequest {
+  query: {
+    state?: string;
+  };
+}
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -138,12 +146,12 @@ export class AuthController {
   @Redirect()
   googleAuthRedirect(
     @CurrentUser() user: UserDocument,
-    @Req() req: ExpressRequest,
+    @Req() req: GoogleCallbackRequest, // <-- Use the corrected, simple interface
   ) {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     let defaultSuccessUrl = `${frontendUrl}/auth/google/callback`;
     const default2faUrl = `${frontendUrl}/log-in/verify-2fa`;
-    const state = req.query.state as string | undefined;
+    const state = req.query.state; // <-- This is now fully type-safe
     if (state) {
       try {
         const decodedState = JSON.parse(
@@ -204,7 +212,6 @@ export class AuthController {
     return { message: 'Logout acknowledged. Please clear your token.' };
   }
 
-  // --- THIS METHOD IS CORRECTED ---
   @Get('status')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
@@ -223,8 +230,8 @@ export class AuthController {
       picture: user.picture,
       roles: user.roles,
       is2FAEnabled: user.is2FAEnabled,
-      accountStatus: user.accountStatus, // <-- Added
-      banReason: user.banReason, // <-- Added
+      accountStatus: user.accountStatus,
+      banReason: user.banReason,
     };
   }
 }

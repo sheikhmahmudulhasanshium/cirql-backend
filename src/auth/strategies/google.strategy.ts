@@ -13,6 +13,24 @@ import { AuthService } from '../auth.service';
 import { UserDocument } from '../../users/schemas/user.schema';
 import { OAuth2Client } from 'google-auth-library';
 
+// This interface correctly handles the type mismatch.
+// It removes the conflicting properties from the base `GoogleProfile`
+// and re-declares them with types that match the actual (optional) data.
+interface EnrichedGoogleProfile
+  extends Omit<GoogleProfile, 'name' | 'emails' | 'photos'> {
+  name?: {
+    familyName?: string;
+    givenName?: string;
+  };
+  emails?: {
+    value: string;
+    verified: boolean;
+  }[];
+  photos?: {
+    value: string;
+  }[];
+}
+
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   private readonly logger = new Logger(GoogleStrategy.name);
@@ -46,18 +64,13 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
 
   async validate(
     accessToken: string,
-
-    refreshToken: string, // Often unused but required by the signature
-    profile: GoogleProfile,
+    refreshToken: string,
+    profile: EnrichedGoogleProfile, // <-- Use the corrected interface
   ): Promise<UserDocument> {
     this.logger.debug(`Validating Google profile for: ${profile.displayName}`);
 
     try {
-      // Use the accessToken to get token info from Google. This is a robust
-      // server-to-server check that validates the token's authenticity.
       const tokenInfo = await this.googleClient.getTokenInfo(accessToken);
-
-      // We trust the email and sub from the validated token info.
       const email = tokenInfo.email;
       const googleId = tokenInfo.sub;
 
@@ -67,12 +80,11 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         );
       }
 
-      // We can safely use the less sensitive name and picture from the profile object.
+      // Access is now fully type-safe, no `any` cast needed.
       const firstName = profile.name?.givenName;
       const lastName = profile.name?.familyName;
       const picture = profile.photos?.[0]?.value;
 
-      // Find or create the user based on the validated information.
       const user = await this.authService.validateOAuthLogin(
         googleId,
         email,
@@ -83,14 +95,12 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
 
       return user;
     } catch (err) {
-      // --- FIX START: Add a check before accessing `err.stack` ---
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       const errorStack = err instanceof Error ? err.stack : undefined;
       this.logger.error(
         `Google token validation failed: ${errorMessage}`,
         errorStack,
       );
-      // --- FIX END ---
       throw new UnauthorizedException('Failed to validate Google token.');
     }
   }

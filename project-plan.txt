@@ -399,18 +399,25 @@ My specific question/topic for today is: [Insert your specific question or topic
   "twoFASecret": "ENCRYPTED_SECRET_KEY", // Important: Encrypted!
   "backupCodes": ["ENCRYPTED_CODE1", "ENCRYPTED_CODE2"] // Important: Encrypted!
 }
-Commit Summary: Implement Ban Appeal System
-This commit introduces a complete system for banned users to appeal their suspension, creating a seamless workflow for both users and administrators.
-1. Backend API Enhancements (/support):
-New Endpoint (POST /support/appeal-ticket): A dedicated endpoint was created for submitting ban appeals. It is secured to be accessible only by users who are authenticated but have an accountStatus of 'banned'.
-Custom Guard (BannedUserGuard): A new guard was implemented to enforce the specific permission required for the appeal endpoint, preventing its use by active users.
-Service Logic (createAppealTicket): When a banned user submits an appeal, the service now automatically:
-Creates a new support ticket with a special subject like [Ban Appeal].
-Populates the ticket with the banned user's ID and email for easy tracking.
-Sends an email notification to the admin, informing them of the new appeal.
-2. Frontend User Experience (/banned Page):
-Interactive Appeal Form: The static /banned page has been transformed into an interactive form. Instead of just a link, it now features a textarea where the user can compose and submit their appeal directly.
-Context-Aware UI: The form is pre-aware of the user's identity, so they do not need to re-enter their name or email.
-User Feedback: The form includes client-side validation (minimum message length) and provides clear user feedback via loading indicators and toast notifications (Appeal Submitted, Submission Failed).
-Overall Impact:
-This feature closes a critical loop in the user management lifecycle. Banned users are no longer at a dead end; they now have a clear, integrated path to request a review of their case. For administrators, these appeals are funneled directly into the existing support ticket queue, ensuring they are handled efficiently without requiring a separate process.
+Project Plan Summary: User Notification System
+Primary Goal: To build a system that automatically sends a welcome notification and email to new users and provides a framework for future notification types.
+Key Architectural Decision: To avoid redundant APIs, we will hook directly into the existing user creation logic within the AuthService.
+Backend Plan (NotificationModule):
+Schema (Notification): Create a new Mongoose schema with fields for userId, title, message, type, isRead, and an optional linkUrl.
+Service (NotificationService):
+createNotification(): Core function to save a new notification to the database.
+getNotificationsForUser(): Fetches a user's notifications (paginated).
+markAsRead() & markAllAsRead(): Methods to update the isRead status.
+getUnreadCount(): Efficiently counts unread notifications for a UI badge.
+Controller (NotificationController): Create secure endpoints for the frontend to GET notifications and their unread count, and to PATCH/POST read statuses.
+Integration (The "No Redundancy" Step):
+Modify AuthService's validateOAuthLogin method.
+Immediately after a new user is created, call the new notificationService.createNotification() and a new emailService.sendWelcomeEmail() method.
+Frontend Plan:
+UI Component (Notification Bell): Add a bell icon to the site header that shows a badge with the unread count from the new API endpoint.
+Dropdown/Popover: Clicking the bell will display a list of recent notifications.
+User Actions: Implement functionality for users to mark notifications as read (individually or all at once) and to be redirected to a linkUrl upon clicking a notification.
+
+
+first fix the existing vercel error. first please remind me to check build log of my backend before implementing any changes.since the code are already in production do not make any sudden changes. make minimum changes as possible. also never give me incomplete , skipped /commented lines code, the codes needs to be type-safe, logically flawless, no error. if you are comfortable with that let me know. then i will give you my codes in several parts. do not code at that time. wait for my confirmation.
+I also need a search api for users, settings, notifications, ....., so that i can implement searchbar.

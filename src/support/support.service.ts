@@ -21,7 +21,7 @@ import { UserDocument } from '../users/schemas/user.schema';
 import { EmailService } from '../email/email.service';
 import { Role } from '../common/enums/role.enum';
 import { CreatePublicTicketDto } from './dto/create-public-ticket.dto';
-import { CreateAppealDto } from './dto/create-appeal.dto'; // --- ADDED IMPORT ---
+import { CreateAppealDto } from './dto/create-appeal.dto';
 
 function isUserDocument(
   user: Types.ObjectId | UserDocument | undefined,
@@ -64,7 +64,8 @@ export class SupportService {
     const isOwner =
       !!ticket.user &&
       isUserDocument(ticket.user) &&
-      ticket.user._id.equals(user._id);
+      // FIX: Use string comparison instead of .equals()
+      ticket.user._id.toString() === user._id.toString();
     const isAdmin =
       user.roles.includes(Role.Admin) || user.roles.includes(Role.Owner);
 
@@ -106,7 +107,8 @@ export class SupportService {
         );
         await this.emailService.sendTicketReplyEmail({
           to: recipientEmail,
-          ticketId: ticket._id.toHexString(),
+          // FIX: Use .toString() instead of .toHexString()
+          ticketId: ticket._id.toString(),
           ticketSubject: ticket.subject,
           replyContent: addMessageDto.content,
           replierName: senderName,
@@ -114,7 +116,8 @@ export class SupportService {
         this.logger.log(`Sending copy of admin reply to ${adminEmail}`);
         await this.emailService.sendTicketReplyEmail({
           to: adminEmail,
-          ticketId: ticket._id.toHexString(),
+          // FIX: Use .toString() instead of .toHexString()
+          ticketId: ticket._id.toString(),
           ticketSubject: `[Admin Reply Sent] ${ticket.subject}`,
           replyContent: addMessageDto.content,
           replierName: senderName,
@@ -126,7 +129,8 @@ export class SupportService {
       );
       await this.emailService.sendTicketReplyEmail({
         to: adminEmail,
-        ticketId: ticket._id.toHexString(),
+        // FIX: Use .toString() instead of .toHexString()
+        ticketId: ticket._id.toString(),
         ticketSubject: `[New User Reply] ${ticket.subject}`,
         replyContent: addMessageDto.content,
         replierName: senderName,
@@ -142,7 +146,9 @@ export class SupportService {
     }
     const isAdmin =
       user.roles.includes(Role.Admin) || user.roles.includes(Role.Owner);
-    const isOwner = ticket.user && ticket.user.equals(user._id);
+    // FIX: Use string comparison instead of .equals()
+    const isOwner =
+      ticket.user && ticket.user.toString() === user._id.toString();
     if (!isAdmin && !isOwner) {
       throw new ForbiddenException(
         'You do not have permission to perform this action.',
@@ -198,7 +204,8 @@ export class SupportService {
         `${adminUser.firstName ?? ''} ${adminUser.lastName ?? ''}`.trim();
       await this.emailService.sendTicketReplyEmail({
         to: recipientEmail,
-        ticketId: ticket._id.toHexString(),
+        // FIX: Use .toString() instead of .toHexString()
+        ticketId: ticket._id.toString(),
         ticketSubject: `[Closed] ${ticket.subject}`,
         replyContent: `This support ticket has been closed by our support team. If you have further questions, please create a new ticket.`,
         replierName: adminName,
@@ -208,7 +215,6 @@ export class SupportService {
     return ticket;
   }
 
-  // --- NEW METHOD ---
   async createAppealTicket(
     dto: CreateAppealDto,
     user: UserDocument,
@@ -217,14 +223,14 @@ export class SupportService {
     this.logger.log(`Creating ban appeal ticket for user ${user.id}`);
 
     const newTicket = new this.ticketModel({
-      category: TicketCategory.OTHER, // Consider adding a 'BAN_APPEAL' to the enum
+      category: TicketCategory.OTHER,
       subject: subject,
       user: user._id,
       guestName:
         `${user.firstName || ''} ${user.lastName || ''}`.trim() ||
         'Banned User',
       guestEmail: user.email,
-      lastSeenByAdminAt: null, // Ensure admin has not seen it yet
+      lastSeenByAdminAt: null,
       status: TicketStatus.OPEN,
     });
 
@@ -238,7 +244,6 @@ export class SupportService {
     newTicket.messages.push(savedMessage._id as Types.ObjectId);
     await newTicket.save();
 
-    // Notify admin about the new appeal using the existing contact form email method
     if (user.email) {
       await this.emailService.sendContactFormEmail({
         name: `${user.firstName || 'Banned User'} (ID: ${user.id})`,
@@ -360,7 +365,8 @@ export class SupportService {
     if (
       ticket.user &&
       ticket.user instanceof Types.ObjectId &&
-      ticket.user.equals(user._id)
+      // FIX: Use string comparison instead of .equals()
+      ticket.user.toString() === user._id.toString()
     ) {
       return ticket;
     }
