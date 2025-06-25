@@ -105,7 +105,6 @@ export class AuthService {
         );
       }
       await this.generateAndSend2faCode(user);
-      // --- THE FINAL FIX IS HERE ---
       return { isTwoFactorRequired: true, userId: user.id as string };
     }
 
@@ -210,8 +209,9 @@ export class AuthService {
     };
     const accessToken = this.jwtService.sign(payload);
 
+    // This manual construction is the most robust way to satisfy the linter.
     const sanitizedUser: SanitizedUser = {
-      _id: new Types.ObjectId(user._id.toString()),
+      _id: user._id,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,

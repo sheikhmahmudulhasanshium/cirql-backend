@@ -1,3 +1,5 @@
+// src/notifications/notifications.service.ts
+
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -27,10 +29,7 @@ export class NotificationsService {
   async createNotification(
     payload: CreateNotificationPayload,
   ): Promise<NotificationDocument> {
-    const userIdString =
-      typeof payload.userId === 'string'
-        ? payload.userId
-        : payload.userId.toHexString();
+    const userIdString = payload.userId.toString(); // Use .toString()
     this.logger.log(`Creating notification for user ${userIdString}`);
 
     const notification = new this.notificationModel(payload);

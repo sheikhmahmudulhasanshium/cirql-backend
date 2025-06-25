@@ -13,23 +13,6 @@ import { AuthService } from '../auth.service';
 import { UserDocument } from '../../users/schemas/user.schema';
 import { OAuth2Client } from 'google-auth-library';
 
-// This is an interface describing the shape we expect the profile to have.
-// It doesn't extend, it just defines.
-interface EnrichedGoogleProfile {
-  displayName: string;
-  name?: {
-    familyName?: string;
-    givenName?: string;
-  };
-  emails?: {
-    value: string;
-    verified: boolean;
-  }[];
-  photos?: {
-    value: string;
-  }[];
-}
-
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   private readonly logger = new Logger(GoogleStrategy.name);
@@ -64,14 +47,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   async validate(
     accessToken: string,
     refreshToken: string,
-    profile: GoogleProfile, // <-- Use the base type from the library
+    profile: GoogleProfile, // Use the base type
   ): Promise<UserDocument> {
-    // Cast to our enriched type here for safe access.
-    const enrichedProfile = profile as EnrichedGoogleProfile;
-
-    this.logger.debug(
-      `Validating Google profile for: ${enrichedProfile.displayName}`,
-    );
+    this.logger.debug(`Validating Google profile for: ${profile.displayName}`);
 
     try {
       const tokenInfo = await this.googleClient.getTokenInfo(accessToken);
@@ -84,9 +62,10 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         );
       }
 
-      const firstName = enrichedProfile.name?.givenName;
-      const lastName = enrichedProfile.name?.familyName;
-      const picture = enrichedProfile.photos?.[0]?.value;
+      // Safely access potentially optional properties
+      const firstName = profile.name?.givenName;
+      const lastName = profile.name?.familyName;
+      const picture = profile.photos?.[0]?.value;
 
       const user = await this.authService.validateOAuthLogin(
         googleId,
