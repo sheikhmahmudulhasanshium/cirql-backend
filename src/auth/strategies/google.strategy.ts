@@ -7,11 +7,22 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import { Strategy, Profile as GoogleProfile } from 'passport-google-oauth20';
+import { Strategy } from 'passport-google-oauth20'; // Profile is no longer needed
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
 import { UserDocument } from '../../users/schemas/user.schema';
 import { OAuth2Client } from 'google-auth-library';
+
+interface GoogleTokenPayload {
+  email?: string;
+  email_verified?: boolean;
+  sub?: string;
+  name?: string;
+  given_name?: string;
+  family_name?: string;
+  picture?: string;
+  locale?: string;
+}
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
@@ -44,21 +55,15 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     this.googleClient = new OAuth2Client(clientID);
   }
 
-  async validate(
-    accessToken: string,
-    refreshToken: string,
-    profile: GoogleProfile,
-  ): Promise<UserDocument> {
-    this.logger.debug(
-      `Validating Google profile for: ${
-        typeof profile.displayName === 'string'
-          ? profile.displayName
-          : 'Unknown'
-      }`,
-    );
+  // This is the cleanest signature: we only declare the parameters we actually use.
+  async validate(accessToken: string): Promise<UserDocument> {
+    this.logger.debug(`Validating Google profile for email via token...`);
 
     try {
-      const tokenInfo = await this.googleClient.getTokenInfo(accessToken);
+      const tokenInfo = (await this.googleClient.getTokenInfo(
+        accessToken,
+      )) as GoogleTokenPayload;
+
       const email = tokenInfo.email;
       const googleId = tokenInfo.sub;
 
@@ -68,24 +73,11 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         );
       }
 
-      const firstName: string | undefined =
-        profile.name && typeof profile.name.givenName === 'string'
-          ? profile.name.givenName
-          : undefined;
+      this.logger.debug(`Token validated for email: ${email}`);
 
-      const lastName: string | undefined =
-        profile.name && typeof profile.name.familyName === 'string'
-          ? profile.name.familyName
-          : undefined;
-
-      const picture: string | undefined =
-        profile.photos &&
-        Array.isArray(profile.photos) &&
-        profile.photos.length > 0 &&
-        profile.photos[0] &&
-        typeof profile.photos[0].value === 'string'
-          ? profile.photos[0].value
-          : undefined;
+      const firstName = tokenInfo.given_name;
+      const lastName = tokenInfo.family_name;
+      const picture = tokenInfo.picture;
 
       const user = await this.authService.validateOAuthLogin(
         googleId,
