@@ -49,7 +49,6 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     refreshToken: string,
     profile: GoogleProfile,
   ): Promise<UserDocument> {
-    // This explicit check satisfies the linter rule for displayName.
     this.logger.debug(
       `Validating Google profile for: ${
         typeof profile.displayName === 'string'
@@ -70,8 +69,10 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       }
 
       // --- THE FINAL AND GUARANTEED FIX ---
-      // This pattern explicitly validates the type of each property before assignment.
-      // This creates a "clean" variable with a known type, satisfying all strict linter rules.
+      // This pattern explicitly validates the existence and type of each property.
+      // This is the only way to satisfy the strict 'no-unsafe-assignment' and
+      // 'no-unsafe-member-access' rules without disabling them.
+
       const firstName: string | undefined =
         profile.name && typeof profile.name.givenName === 'string'
           ? profile.name.givenName
@@ -85,6 +86,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       const picture: string | undefined =
         profile.photos &&
         Array.isArray(profile.photos) &&
+        profile.photos.length > 0 &&
         profile.photos[0] &&
         typeof profile.photos[0].value === 'string'
           ? profile.photos[0].value
