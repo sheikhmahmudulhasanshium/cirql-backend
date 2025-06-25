@@ -47,9 +47,16 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   async validate(
     accessToken: string,
     refreshToken: string,
-    profile: GoogleProfile, // Use the base type
+    profile: GoogleProfile,
   ): Promise<UserDocument> {
-    this.logger.debug(`Validating Google profile for: ${profile.displayName}`);
+    // This explicit check satisfies the linter rule for displayName.
+    this.logger.debug(
+      `Validating Google profile for: ${
+        typeof profile.displayName === 'string'
+          ? profile.displayName
+          : 'Unknown'
+      }`,
+    );
 
     try {
       const tokenInfo = await this.googleClient.getTokenInfo(accessToken);
@@ -62,10 +69,27 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         );
       }
 
-      // Safely access potentially optional properties
-      const firstName = profile.name?.givenName;
-      const lastName = profile.name?.familyName;
-      const picture = profile.photos?.[0]?.value;
+      // --- THE FINAL AND GUARANTEED FIX ---
+      // This pattern explicitly validates the type of each property before assignment.
+      // This creates a "clean" variable with a known type, satisfying all strict linter rules.
+      const firstName: string | undefined =
+        profile.name && typeof profile.name.givenName === 'string'
+          ? profile.name.givenName
+          : undefined;
+
+      const lastName: string | undefined =
+        profile.name && typeof profile.name.familyName === 'string'
+          ? profile.name.familyName
+          : undefined;
+
+      const picture: string | undefined =
+        profile.photos &&
+        Array.isArray(profile.photos) &&
+        profile.photos[0] &&
+        typeof profile.photos[0].value === 'string'
+          ? profile.photos[0].value
+          : undefined;
+      // --- END OF FIX ---
 
       const user = await this.authService.validateOAuthLogin(
         googleId,
