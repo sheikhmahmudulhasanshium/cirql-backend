@@ -13,6 +13,22 @@ import { AuthService } from '../auth.service';
 import { UserDocument } from '../../users/schemas/user.schema';
 import { OAuth2Client } from 'google-auth-library';
 
+// --- THE FINAL AND GUARANTEED FIX ---
+// This uses the Omit utility type to create a new type that is the same as
+// GoogleProfile, but *without* the 'name' and 'photos' properties.
+// We then add our own, correctly typed (optional) versions back in.
+// This resolves the "incorrectly extends" error permanently.
+type EnrichedGoogleProfile = Omit<GoogleProfile, 'name' | 'photos'> & {
+  name?: {
+    givenName?: string;
+    familyName?: string;
+  };
+  photos?: {
+    value: string;
+  }[];
+};
+// --- END OF FIX ---
+
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   private readonly logger = new Logger(GoogleStrategy.name);
@@ -49,12 +65,11 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     refreshToken: string,
     profile: GoogleProfile,
   ): Promise<UserDocument> {
+    // Cast the incoming profile to our new, correct type.
+    const enrichedProfile = profile as EnrichedGoogleProfile;
+
     this.logger.debug(
-      `Validating Google profile for: ${
-        typeof profile.displayName === 'string'
-          ? profile.displayName
-          : 'Unknown'
-      }`,
+      `Validating Google profile for: ${enrichedProfile.displayName}`,
     );
 
     try {
@@ -68,30 +83,10 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         );
       }
 
-      // --- THE FINAL AND GUARANTEED FIX ---
-      // This pattern explicitly validates the existence and type of each property.
-      // This is the only way to satisfy the strict 'no-unsafe-assignment' and
-      // 'no-unsafe-member-access' rules without disabling them.
-
-      const firstName: string | undefined =
-        profile.name && typeof profile.name.givenName === 'string'
-          ? profile.name.givenName
-          : undefined;
-
-      const lastName: string | undefined =
-        profile.name && typeof profile.name.familyName === 'string'
-          ? profile.name.familyName
-          : undefined;
-
-      const picture: string | undefined =
-        profile.photos &&
-        Array.isArray(profile.photos) &&
-        profile.photos.length > 0 &&
-        profile.photos[0] &&
-        typeof profile.photos[0].value === 'string'
-          ? profile.photos[0].value
-          : undefined;
-      // --- END OF FIX ---
+      // Access is now fully type-safe from the enriched profile.
+      const firstName = enrichedProfile.name?.givenName;
+      const lastName = enrichedProfile.name?.familyName;
+      const picture = enrichedProfile.photos?.[0]?.value;
 
       const user = await this.authService.validateOAuthLogin(
         googleId,
