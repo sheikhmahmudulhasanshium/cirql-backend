@@ -1,9 +1,6 @@
-// src/support/schemas/ticket.schema.ts
-
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-// We explicitly define the document type to ensure _id is a Types.ObjectId
 export type TicketDocument = Ticket & Document & { _id: Types.ObjectId };
 
 export enum TicketCategory {
@@ -24,9 +21,11 @@ export enum TicketStatus {
 
 @Schema({ timestamps: true })
 export class Ticket extends Document {
+  // If the ticket is from a registered user
   @Prop({ type: Types.ObjectId, ref: 'User', required: false, index: true })
   user?: Types.ObjectId;
 
+  // If the ticket is from a public (unauthenticated) user
   @Prop({ required: false })
   guestName?: string;
 
@@ -56,13 +55,10 @@ export class Ticket extends Document {
   @Prop({ type: Date, default: null })
   lastSeenByAdminAt: Date | null;
 
-  // --- FIX START: Explicitly declare timestamp properties for TypeScript ---
-  // These are automatically managed by Mongoose via the `timestamps: true` option,
-  // but declaring them here makes them available to TypeScript's type checker,
-  // especially when using .lean().
+  // Explicitly declare timestamp properties for better TypeScript type safety,
+  // especially when using .lean(). Mongoose manages these automatically.
   createdAt: Date;
   updatedAt: Date;
-  // --- FIX END ---
 }
 
 export const TicketSchema = SchemaFactory.createForClass(Ticket);

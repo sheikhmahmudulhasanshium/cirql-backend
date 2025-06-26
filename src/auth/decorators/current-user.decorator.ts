@@ -1,9 +1,9 @@
-// FILE: src/auth/decorators/current-user.decorator.ts
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { UserDocument } from '../../users/schemas/user.schema';
 import { Request } from 'express';
 
 // Define a type for the Express request object that includes the 'user' property.
+// This makes our code type-safe and satisfies the linter.
 interface RequestWithUser extends Request {
   user: UserDocument;
 }

@@ -1,7 +1,9 @@
+// src/auth/strategies/jwt-2fa.strategy.ts
 import {
   Injectable,
   UnauthorizedException,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -11,43 +13,85 @@ import { UserDocument } from '../../users/schemas/user.schema';
 
 export interface Jwt2faPayload {
   sub: string;
-  isTwoFactorAuthenticationComplete: false;
+  isTwoFactorAuthenticationComplete: boolean;
 }
 
 @Injectable()
 export class Jwt2faStrategy extends PassportStrategy(Strategy, 'jwt-2fa') {
+  private readonly logger = new Logger(Jwt2faStrategy.name);
+
   constructor(
-    private readonly configService: ConfigService,
+    configService: ConfigService,
     private readonly usersService: UsersService,
   ) {
     const jwtSecret = configService.get<string>('JWT_SECRET');
     if (!jwtSecret) {
+      console.error(
+        '[Jwt2faStrategy] CRITICAL: JWT_SECRET is not defined in the environment. This strategy will not function.',
+      );
       throw new InternalServerErrorException(
-        'JWT_SECRET is not defined in the environment.',
+        'JWT_SECRET is not defined for jwt-2fa strategy.',
       );
     }
-
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: jwtSecret,
     });
+    this.logger.debug('Jwt2faStrategy initialized.');
   }
 
   async validate(payload: Jwt2faPayload): Promise<UserDocument> {
+    this.logger.debug(
+      `Validating JWT 2FA payload for user sub: ${payload.sub}`,
+    );
+
     if (payload.isTwoFactorAuthenticationComplete) {
+      this.logger.warn(
+        `User ${payload.sub} attempted to use a fully authenticated token for 2FA step.`,
+      );
       throw new UnauthorizedException(
-        'This token is not valid for 2FA verification.',
+        'This token is not valid for 2FA step-up verification.',
       );
     }
 
-    const user = await this.usersService.findByIdWith2FASecret(payload.sub);
+    let user: UserDocument | null = null;
+    try {
+      // Reminder: Ensure 'findById' is the correct method for your UsersService here.
+      user = await this.usersService.findById(payload.sub);
 
-    if (!user) {
-      throw new UnauthorizedException('User not found or token is invalid.');
+      if (!user) {
+        this.logger.warn(
+          `User not found for 2FA validation with sub: ${payload.sub}`,
+        );
+        throw new UnauthorizedException('User not found based on token sub.');
+      }
+    } catch (e) {
+      const errorMessage =
+        e instanceof Error ? e.message : 'Unknown error during user validation';
+      if (!(e instanceof UnauthorizedException)) {
+        this.logger.error(
+          `Error during 2FA user validation for sub ${payload.sub}: ${errorMessage}`,
+          e instanceof Error ? e.stack : undefined,
+        );
+      }
+      if (e instanceof UnauthorizedException) {
+        throw e;
+      } else if (e instanceof Error && e.name === 'CastError') {
+        this.logger.warn(
+          `Invalid ID format for 2FA user validation: ${payload.sub}`,
+        );
+        throw new UnauthorizedException('Invalid user identifier format.');
+      }
+      throw new UnauthorizedException('User validation failed for 2FA.');
     }
 
     if (!user.is2FAEnabled) {
+      // --- THIS IS THE FIX ---
+      this.logger.warn(
+        `User ${user.email} (sub: ${user._id.toString()}) attempted 2FA, but 2FA is not enabled.`,
+      );
+      // --- END OF FIX ---
       throw new UnauthorizedException('2FA is not enabled for this user.');
     }
 

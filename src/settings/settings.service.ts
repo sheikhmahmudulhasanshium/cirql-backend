@@ -1,8 +1,6 @@
-// backend/src/settings/settings.service.ts
-
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Setting, SettingDocument } from './schemas/setting.schema';
 import { UpdateSettingDto } from './dto/update-setting.dto';
 
@@ -15,12 +13,16 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    const defaultSettings = new this.settingModel({ userId });
+    const defaultSettings = new this.settingModel({
+      userId: new Types.ObjectId(userId),
+    });
     return await defaultSettings.save();
   }
 
   async findOrCreateByUserId(userId: string): Promise<SettingDocument> {
-    const settings = await this.settingModel.findOne({ userId }).exec();
+    const settings = await this.settingModel
+      .findOne({ userId: new Types.ObjectId(userId) })
+      .exec();
     if (settings) {
       return settings;
     }
@@ -33,7 +35,7 @@ export class SettingsService {
   ): Promise<SettingDocument> {
     const updatedSettings = await this.settingModel
       .findOneAndUpdate(
-        { userId },
+        { userId: new Types.ObjectId(userId) },
         { $set: updateSettingDto },
         { new: true, upsert: true, setDefaultsOnInsert: true },
       )
@@ -47,31 +49,32 @@ export class SettingsService {
     return updatedSettings;
   }
 
-  // FIX IS HERE:
   async reset(userId: string): Promise<SettingDocument> {
-    // 1. Create a new document in memory to get all the default values.
-    const defaultDoc = new this.settingModel({ userId });
+    const userObjectId = new Types.ObjectId(userId);
 
-    // 2. Convert it to a plain object.
-    const replacementObject = defaultDoc.toObject();
+    // First, find the existing settings document to ensure it exists.
+    const existingSettings = await this.settingModel
+      .findOne({ userId: userObjectId })
+      .exec();
 
-    // 3. THE FIX: Remove the auto-generated `_id` before the replace operation.
-    //    The `_id` is immutable and should not be part of the replacement payload.
-    delete replacementObject._id;
-
-    // 4. Now perform the replace. MongoDB will preserve the original `_id`.
-    const resetSettings = await this.settingModel.findOneAndReplace(
-      { userId }, // The filter to find the document
-      replacementObject, // The replacement document (without _id)
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
-
-    if (!resetSettings) {
-      // This is now less likely to happen with upsert: true, but good to keep.
-      throw new NotFoundException(
-        `Could not reset settings for user ID ${userId}`,
-      );
+    if (!existingSettings) {
+      // If for some reason it doesn't exist, create a new default one.
+      return this.createDefaultSettings(userId);
     }
-    return resetSettings;
+
+    // Preserve the original _id.
+    const originalId = existingSettings._id;
+
+    // Remove the old document.
+    await this.settingModel.findByIdAndDelete(originalId);
+
+    // Create a new document with the original _id and userId, letting Mongoose handle defaults.
+    const newDefaultSettings = new this.settingModel({
+      _id: originalId,
+      userId: userObjectId,
+    });
+
+    // Save the new default document.
+    return await newDefaultSettings.save();
   }
 }

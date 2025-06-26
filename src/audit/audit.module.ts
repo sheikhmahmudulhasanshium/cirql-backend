@@ -1,4 +1,3 @@
-// src/audit/audit.module.ts
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuditService } from './audit.service';
@@ -13,6 +12,6 @@ import { AuditLog, AuditLogSchema } from './schemas/audit-log.schema';
   ],
   controllers: [AuditController],
   providers: [AuditService],
-  exports: [AuditService], // Export the service so other modules can inject it
+  exports: [AuditService], // Export so other modules can use it
 })
 export class AuditModule {}

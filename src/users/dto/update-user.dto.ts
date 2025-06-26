@@ -1,6 +1,11 @@
-// src/users/dto/update-user.dto.ts
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEmail, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsEmail,
+  MinLength,
+  IsUrl,
+} from 'class-validator';
 
 export class UpdateUserDto {
   @ApiPropertyOptional({
@@ -34,11 +39,6 @@ export class UpdateUserDto {
     example: 'https://example.com/new-avatar.jpg',
   })
   @IsOptional()
-  @IsString() // You might want IsUrl() here after installing class-validator
+  @IsUrl({}, { message: 'Picture must be a valid URL.' })
   picture?: string;
-
-  // Add other fields that can be updated, e.g., bio, preferences, etc.
-  // Do NOT include password here for general updates. Password updates
-  // should typically have their own dedicated flow with current password verification.
-  // Also, googleId should generally not be updatable by the user directly.
 }

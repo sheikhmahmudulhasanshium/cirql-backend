@@ -1,25 +1,22 @@
-// src/auth/auth.module.ts
-
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { AuthService } from './auth.service';
-import { AuthController } from './auth.controller';
-import { UsersModule } from '../users/users.module';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+
+import { AuthService } from './auth.service';
+import { AuthController } from './auth.controller';
+import { UsersModule } from '../users/users.module';
+import { EmailModule } from '../email/email.module';
+import { AuditModule } from '../audit/audit.module';
+
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
-import { EmailModule } from '../email/email.module';
+
 import {
   PasswordResetToken,
   PasswordResetTokenSchema,
 } from './schemas/password-reset-token.schema';
-import { EncryptionService } from './encryption.service';
-import { AuditModule } from '../audit/audit.module';
-import { Jwt2faStrategy } from './strategies/jwt-2fa.stategy';
-import { NotificationsModule } from '../notifications/notifications.module';
-import { SettingsModule } from '../settings/settings.module';
 import {
   TwoFactorToken,
   TwoFactorTokenSchema,
@@ -28,8 +25,6 @@ import {
 @Module({
   imports: [
     forwardRef(() => UsersModule),
-    NotificationsModule, // AuthService needs NotificationsService
-    SettingsModule, // AuthService needs SettingsService
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -50,13 +45,7 @@ import {
     ]),
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    JwtStrategy,
-    Jwt2faStrategy,
-    GoogleStrategy,
-    EncryptionService,
-  ],
+  providers: [AuthService, JwtStrategy, GoogleStrategy],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

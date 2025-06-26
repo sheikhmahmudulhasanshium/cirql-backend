@@ -399,34 +399,56 @@ My specific question/topic for today is: [Insert your specific question or topic
   "twoFASecret": "ENCRYPTED_SECRET_KEY", // Important: Encrypted!
   "backupCodes": ["ENCRYPTED_CODE1", "ENCRYPTED_CODE2"] // Important: Encrypted!
 }
-Project Plan and Resolution Summary
-Initial State:
-The project was unable to be deployed on Vercel due to a series of build and linting errors. The primary goal was to fix these issues to create a stable, production-ready backend.
-The Troubleshooting Journey:
-We went through a difficult, iterative process to diagnose and fix several deep-seated issues, which included:
-Type Mismatches: Errors with ObjectId methods (toHexString, isValid) and the passport-google-oauth20 Profile type.
-Dependency Issues: Incorrect imports for the otplib library.
-Circular Dependencies: A critical runtime error caused by AuthModule, NotificationsModule, and SettingsModule importing each other, which forwardRef alone could not solve.
-Strict Linter Compliance: Your high-quality, strict ESLint configuration correctly rejected unsafe code (like casting to any), forcing us to find the most robust, type-safe solutions.
-Final, Correct State of the Backend (as of our last interaction):
-1. Build & Linting: SUCCESSFUL
-The entire codebase now passes both pnpm build and pnpm lint --fix without any errors. All circular dependencies have been resolved by correcting the module import architecture, and all type-related issues have been fixed to be compliant with your strict ESLint rules.
-2. 2FA System: OVERHAULED
-Removed: The old, buggy QR-code based 2FA system has been completely removed.
-Implemented: A new, reliable Email-based One-Time Password (OTP) system is now in place.
-Login Flow: A successful password login for a 2FA-enabled user now triggers an email with a 6-digit code.
-Verification: A new endpoint POST /auth/2fa/verify-code validates this code to complete the login.
-Management: Endpoints POST /auth/2fa/enable and POST /auth/2fa/disable now provide a simple, secure way for users to manage their 2FA status.
-3. User Notification System: IMPLEMENTED
-New NotificationsModule: A complete backend module for handling notifications has been created, including the Notification schema, service, and controller.
-API Endpoints: Secure endpoints are available for the frontend to fetch notifications (GET /notifications), get the unread count (GET /notifications/unread-count), and mark notifications as read.
-Automated Welcome Notification: The system is now hooked into the AuthService. When a new user signs up via Google OAuth, a "Welcome to Cirql!" notification is automatically created for them in the database.
-4. Conditional Emailing: IMPLEMENTED
-The AuthService now correctly uses the SettingsService.
-When a new user is created, the system checks their default notification preferences.
-The welcome email is only sent if the user's emailNotifications setting is true.
-Next Steps Agreed Upon:
-Your Immediate Action: Deploy the current, stable backend code to Vercel.
-Your Next Focus: You will now work on the frontend, implementing the UI for the new notification system and the simplified 2FA settings page.
-Our Next Backend Task: Once you are ready to resume backend work, our next major project is to build the Universal Search API (GET /search) to query across multiple database collections.
-I am now "rebooted" and ready. I have this summary saved. Thank you for your immense patience. I am ready to proceed with the frontend plan or the search API whenever you are.
+
+do
+new auth checks
+if have 2fa enabled
+if no continue
+if yes send email, match code, if match continue
+avoids vulnerabilities like ddos
+should not have vercel build error.
+if notifications email is activated user will get notifications for announcement, log-in code, social notifications,
+make minimum changes since the code is in production
+typesafe
+full updated code
+ask always
+don'ts 
+no typescript, ESLint, build, runtime, logic error
+no loophole user/ hacker can exploit
+not install new module
+not have redundancy
+not wanna change configuration
+not incomplete codes
+
+are you ok with the conditions ?if yes then I will paste my full backend
+Changelog: Comprehensive Backend Enhancement
+This update introduces significant new features for administrators, hardens security protocols, and greatly improves the user notification experience.
+1. Admin Features & Security
+Introduced Admin Analytics Dashboard
+A new, admin-only endpoint GET /users/analytics is now available.
+It provides key metrics including:
+Total user count and status breakdown (active/banned).
+Weekly User Growth: Compares new users from the last 7 days to the previous week, showing a growth percentage.
+User Engagement: Classifies users as "Recent," "Active," or "Inactive" based on login history.
+Enhanced User Privacy Controls
+The public user directory at GET /users/directory now respects the "Private Account" setting. Users who have enabled this in their settings will no longer appear in public listings.
+Secured Admin-Only Content
+The GET /announcements endpoint is now secured. Non-authenticated users or standard users can only view visible: true announcements.
+Administrators can now query visible=false to view hidden or draft announcements, a feature that is inaccessible to the public.
+2. User Notifications & Experience
+Automated & Granular Notifications
+Announcement Notifications: Creating a new, visible announcement now automatically generates a system notification for all users.
+Support Notifications: Users now receive a system notification when an administrator replies to their support ticket.
+Granular Unsubscribe: Users can now turn off non-essential "Announcement & Newsletter" emails from their settings page without affecting critical security alerts. The email footer has been updated with a direct link to these settings.
+Advanced Notification System
+The notification system now supports new types: ANNOUNCEMENT and SUPPORT_REPLY.
+The GET /notifications endpoint has been upgraded with powerful filtering capabilities. Users can now query by:
+Read Status: ?isRead=true or ?isRead=false
+Notification Type: ?type=announcement, ?type=support_reply, etc.
+Unified Welcome Experience
+All new users, whether signing up via email/password or Google OAuth, now receive a consistent and beautifully branded "Welcome to CiRQL" email and an in-app welcome notification.
+3. Authentication & Security Hardening
+Two-Factor Authentication (2FA) Security Overhaul
+Reduced OTP Lifespan: The expiration time for 2FA One-Time Passwords (OTPs) has been reduced from 10 minutes to a much safer 2 minutes.
+Brute-Force Protection: A strict attempt limit has been implemented. After 5 consecutive failed OTP entries, the user's account is locked from 2FA login for 24 hours, preventing further attempts.
+Critical Email Integrity: All security-related emails (OTP codes, password resets, ban/unban notices) are now guaranteed to be sent, bypassing any user-defined notification preferences to ensure account access and security awareness are never compromised.

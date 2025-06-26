@@ -1,4 +1,3 @@
-// src/users/dto/public-profile.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 import { Types } from 'mongoose';
 

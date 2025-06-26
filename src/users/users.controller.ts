@@ -1,5 +1,3 @@
-// src/users/users.controller.ts
-
 import {
   Controller,
   Get,
@@ -16,8 +14,11 @@ import {
   ParseIntPipe,
   NotFoundException,
 } from '@nestjs/common';
-import { UsersService, AdminUserListView } from './users.service';
-// 'User' is removed from this import as it was unused.
+import {
+  UsersService,
+  AdminUserListView,
+  UserAnalyticsData,
+} from './users.service';
 import { UserDocument } from './schemas/user.schema';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AuthGuard } from '@nestjs/passport';
@@ -25,7 +26,6 @@ import {
   ApiTags,
   ApiOperation,
   ApiBearerAuth,
-  // 'ApiParam' is removed from this import as it was unused.
   ApiResponse,
   ApiQuery,
   ApiProperty,
@@ -56,7 +56,6 @@ class AdminUserDto {
   @ApiProperty() lastName: string;
   @ApiProperty() accountStatus: string;
   @ApiProperty({ enum: Role, isArray: true }) roles: Role[];
-  @ApiProperty({ type: Date, nullable: true }) lastLogin: Date | null;
   @ApiProperty() is2FAEnabled: boolean;
 }
 class PaginatedUsersResponse {
@@ -74,6 +73,19 @@ class PaginatedPublicUsersResponse {
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Get('analytics')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.Admin, Role.Owner)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user analytics data (Admin/Owner only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Provides a summary of user statistics and growth.',
+  })
+  async getUserAnalytics(): Promise<UserAnalyticsData> {
+    return this.usersService.getUserAnalytics();
+  }
 
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)

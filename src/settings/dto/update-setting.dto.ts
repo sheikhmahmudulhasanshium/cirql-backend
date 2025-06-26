@@ -1,36 +1,5 @@
 import { PartialType } from '@nestjs/swagger';
-import {
-  CreateSettingDto,
-  NotificationPreferencesDto,
-  AccountSettingsPreferencesDto,
-  SecuritySettingsPreferencesDto,
-  AccessibilityOptionsPreferencesDto,
-  ContentPreferencesDto,
-  UiCustomizationPreferencesDto,
-} from './create-setting.dto';
+import { CreateSettingDto } from './create-setting.dto';
 
+// PartialType will correctly make all nested objects and their properties optional.
 export class UpdateSettingDto extends PartialType(CreateSettingDto) {}
-
-export class UpdateNotificationPreferencesDto extends PartialType(
-  NotificationPreferencesDto,
-) {}
-
-export class UpdateAccountSettingsPreferencesDto extends PartialType(
-  AccountSettingsPreferencesDto,
-) {}
-
-export class UpdateSecuritySettingsPreferencesDto extends PartialType(
-  SecuritySettingsPreferencesDto,
-) {}
-
-export class UpdateAccessibilityOptionsPreferencesDto extends PartialType(
-  AccessibilityOptionsPreferencesDto,
-) {}
-
-export class UpdateContentPreferencesDto extends PartialType(
-  ContentPreferencesDto,
-) {}
-
-export class UpdateUiCustomizationPreferencesDto extends PartialType(
-  UiCustomizationPreferencesDto,
-) {}

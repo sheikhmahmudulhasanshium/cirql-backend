@@ -5,6 +5,8 @@ import {
   ForbiddenException,
   forwardRef,
   Inject,
+  InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, FilterQuery, Types } from 'mongoose';
@@ -17,6 +19,27 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/schemas/audit-log.schema';
 import { BanUserDto } from './dto/ban-user.dto';
 import { EmailService } from '../email/email.service';
+import { SettingsService } from '../settings/settings.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/schemas/notification.schema';
+
+export interface UserAnalyticsData {
+  totalUsers: number;
+  statusCounts: {
+    active: number;
+    banned: number;
+  };
+  weeklyGrowth: {
+    newUsersThisWeek: number;
+    newUsersLastWeek: number;
+    percentage: number;
+  };
+  engagement: {
+    recent: number; // Logged in past 3 days
+    active: number; // Logged in >= 2 times in past 30 days
+    inactive: number; // Not logged in past 30 days
+  };
+}
 
 export type AdminUserListView = {
   _id: Types.ObjectId;
@@ -25,7 +48,6 @@ export type AdminUserListView = {
   lastName: string | undefined;
   accountStatus: string;
   roles: Role[];
-  lastLogin: Date | null | undefined;
   is2FAEnabled: boolean;
 };
 export interface FindAllUsersResponse {
@@ -41,29 +63,55 @@ export interface FindPublicProfilesResponse {
   limit: number;
 }
 
+interface PublicProfileAggregateResult {
+  _id: Types.ObjectId;
+  firstName?: string;
+  lastName?: string;
+  picture?: string;
+}
+interface TotalCountAggregateResult {
+  total: number;
+}
+interface StatusCountAggregateResult {
+  _id: string;
+  count: number;
+}
+
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @Inject(forwardRef(() => AuditService))
     private readonly auditService: AuditService,
     private readonly emailService: EmailService,
+    private readonly settingsService: SettingsService,
+    @Inject(forwardRef(() => NotificationsService))
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findById(id: string | Types.ObjectId): Promise<UserDocument | null> {
     return this.userModel.findById(id).exec();
   }
 
-  async findByIdWith2FASecret(id: string): Promise<UserDocument | null> {
-    // This method is now obsolete but kept to avoid breaking other old dependencies.
-    // In a real refactor, you'd remove calls to this and delete it.
-    return this.userModel.findById(id).exec();
+  async findByIdForAuth(
+    id: string | Types.ObjectId,
+  ): Promise<UserDocument | null> {
+    return this.userModel
+      .findById(id)
+      .select(
+        '+password +twoFactorAuthenticationCode +twoFactorAuthenticationCodeExpires +twoFactorAttempts +twoFactorLockoutUntil',
+      )
+      .exec();
   }
 
-  async findOneByEmail(email: string): Promise<UserDocument | null> {
+  async findOneByEmailForAuth(email: string): Promise<UserDocument | null> {
     return this.userModel
       .findOne({ email: email.toLowerCase() })
-      .select('+password')
+      .select(
+        '+password +twoFactorAuthenticationCode +twoFactorAuthenticationCodeExpires +twoFactorAttempts +twoFactorLockoutUntil',
+      )
       .exec();
   }
 
@@ -72,12 +120,51 @@ export class UsersService {
   }
 
   async create(userData: Partial<User>): Promise<UserDocument> {
-    const newUser = new this.userModel(userData);
-    return newUser.save();
+    try {
+      const newUser = new this.userModel(userData);
+      await newUser.save();
+      await this.runPostCreationTasks(newUser);
+      return newUser;
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes('E11000')) {
+        throw new ConflictException(
+          'A user with this email or Google ID already exists.',
+        );
+      }
+      this.logger.error('Error creating new user:', err);
+      throw new InternalServerErrorException('Could not create user.');
+    }
+  }
+
+  private async runPostCreationTasks(newUser: UserDocument): Promise<void> {
+    this.logger.log(`Performing post-creation actions for ${newUser.id}`);
+    const welcomeName = newUser.firstName || 'there';
+
+    await this.notificationsService.createNotification({
+      userId: newUser._id,
+      title: 'Welcome to CiRQL! 🎉',
+      message:
+        'We are thrilled to have you on board. Explore your profile and settings to get started.',
+      type: NotificationType.WELCOME,
+      linkUrl: '/profile/me',
+    });
+
+    const userSettings = await this.settingsService.findOrCreateByUserId(
+      newUser._id.toString(),
+    );
+    if (
+      newUser.email &&
+      userSettings.notificationPreferences.emailNotifications
+    ) {
+      await this.emailService.sendWelcomeEmail(newUser.email, welcomeName);
+    }
   }
 
   async updateLastLogin(userId: Types.ObjectId): Promise<void> {
-    await this.userModel.updateOne({ _id: userId }, { lastLogin: new Date() });
+    await this.userModel.updateOne(
+      { _id: userId },
+      { $push: { loginHistory: { $each: [new Date()], $slice: -10 } } },
+    );
   }
 
   async set2FA(
@@ -105,11 +192,17 @@ export class UsersService {
       [Role.Admin, Role.Owner].includes(role),
     );
     if (!isAdmin) {
-      filter.accountStatus = 'active';
+      throw new ForbiddenException('Access denied.');
     }
     const skip = (page - 1) * limit;
     const [users, total] = await Promise.all([
-      this.userModel.find(filter).skip(skip).limit(limit).lean().exec(),
+      this.userModel
+        .find(filter)
+        .select('-password -loginHistory')
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
       this.userModel.countDocuments(filter).exec(),
     ]);
     const sanitizedData: AdminUserListView[] = users.map((user) => ({
@@ -119,7 +212,6 @@ export class UsersService {
       lastName: user.lastName,
       accountStatus: user.accountStatus,
       roles: user.roles,
-      lastLogin: user.lastLogin,
       is2FAEnabled: user.is2FAEnabled,
     }));
     return { data: sanitizedData, total, page, limit };
@@ -130,18 +222,127 @@ export class UsersService {
     limit: number,
   ): Promise<FindPublicProfilesResponse> {
     const skip = (page - 1) * limit;
-    const filter: FilterQuery<UserDocument> = { accountStatus: 'active' };
-    const [users, total] = await Promise.all([
-      this.userModel.find(filter).skip(skip).limit(limit).lean().exec(),
-      this.userModel.countDocuments(filter).exec(),
+
+    const aggregationPipeline: any[] = [
+      { $match: { accountStatus: 'active' } },
+      {
+        $lookup: {
+          from: 'settings',
+          localField: '_id',
+          foreignField: 'userId',
+          as: 'settingsInfo',
+        },
+      },
+      { $unwind: { path: '$settingsInfo', preserveNullAndEmptyArrays: true } },
+      {
+        $match: {
+          'settingsInfo.accountSettingsPreferences.isPrivate': { $ne: true },
+        },
+      },
+      {
+        $project: {
+          firstName: 1,
+          lastName: 1,
+          picture: 1,
+          _id: 1,
+        },
+      },
+    ];
+
+    const findPipeline: any[] = aggregationPipeline.concat([
+      { $skip: skip },
+      { $limit: limit },
     ]);
+    const countPipeline: any[] = aggregationPipeline.concat([
+      { $count: 'total' },
+    ]);
+
+    const [users, totalResult] = await Promise.all([
+      this.userModel
+        .aggregate<PublicProfileAggregateResult>(findPipeline)
+        .exec(),
+      this.userModel.aggregate<TotalCountAggregateResult>(countPipeline).exec(),
+    ]);
+
+    const total = totalResult.length > 0 ? totalResult[0].total : 0;
+
     const sanitizedData: PublicProfileDto[] = users.map((user) => ({
-      id: user._id.toHexString(),
+      id: user._id.toString(),
       firstName: user.firstName,
       lastName: user.lastName,
       picture: user.picture,
     }));
     return { data: sanitizedData, total, page, limit };
+  }
+
+  async getUserAnalytics(): Promise<UserAnalyticsData> {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const lastWeekEndDate = new Date();
+    lastWeekEndDate.setDate(lastWeekEndDate.getDate() - 7);
+    const twoWeeksAgoDate = new Date();
+    twoWeeksAgoDate.setDate(twoWeeksAgoDate.getDate() - 14);
+
+    const [allUsers, statusCounts, newThisWeek, newLastWeek] =
+      await Promise.all([
+        this.userModel
+          .find({}, 'loginHistory createdAt')
+          .select('+loginHistory')
+          .lean()
+          .exec(),
+        this.userModel
+          .aggregate<StatusCountAggregateResult>([
+            { $group: { _id: '$accountStatus', count: { $sum: 1 } } },
+          ])
+          .exec(),
+        this.userModel
+          .countDocuments({ createdAt: { $gte: lastWeekEndDate } })
+          .exec(),
+        this.userModel
+          .countDocuments({
+            createdAt: { $gte: twoWeeksAgoDate, $lt: lastWeekEndDate },
+          })
+          .exec(),
+      ]);
+
+    const engagement = { recent: 0, active: 0, inactive: 0 };
+    for (const user of allUsers) {
+      if (!user.loginHistory || user.loginHistory.length === 0) {
+        engagement.inactive++;
+        continue;
+      }
+      const lastLogin = user.loginHistory[user.loginHistory.length - 1];
+      if (lastLogin >= threeDaysAgo) engagement.recent++;
+      if (lastLogin < thirtyDaysAgo) engagement.inactive++;
+      if (
+        user.loginHistory.filter((date) => date >= thirtyDaysAgo).length >= 2
+      ) {
+        engagement.active++;
+      }
+    }
+
+    const growthPercentage =
+      newLastWeek > 0
+        ? ((newThisWeek - newLastWeek) / newLastWeek) * 100
+        : newThisWeek > 0
+          ? 100
+          : 0;
+
+    const activeCount =
+      statusCounts.find((s) => s._id === 'active')?.count || 0;
+    const bannedCount =
+      statusCounts.find((s) => s._id === 'banned')?.count || 0;
+
+    return {
+      totalUsers: allUsers.length,
+      statusCounts: { active: activeCount, banned: bannedCount },
+      weeklyGrowth: {
+        newUsersThisWeek: newThisWeek,
+        newUsersLastWeek: newLastWeek,
+        percentage: parseFloat(growthPercentage.toFixed(2)),
+      },
+      engagement,
+    };
   }
 
   async updateUserRoles(
@@ -194,15 +395,12 @@ export class UsersService {
     requestingUser: UserDocument,
   ): Promise<UserDocument> {
     const userToBan = await this.findById(idToBan);
-    if (!userToBan) {
+    if (!userToBan)
       throw new NotFoundException(`User with ID "${idToBan}" not found.`);
-    }
-    if (userToBan.id === requestingUser.id) {
+    if (userToBan.id === requestingUser.id)
       throw new ForbiddenException('You cannot ban your own account.');
-    }
-    if (userToBan.roles.includes(Role.Owner)) {
+    if (userToBan.roles.includes(Role.Owner))
       throw new ForbiddenException('The Owner account cannot be banned.');
-    }
 
     userToBan.accountStatus = 'banned';
     userToBan.banReason = banUserDto.reason;
@@ -216,7 +414,6 @@ export class UsersService {
         `Your account has been suspended for the following reason: <strong>${banUserDto.reason}</strong>`,
       );
     }
-
     await this.auditService.createLog({
       actor: requestingUser,
       action: AuditAction.USER_ACCOUNT_BANNED,
@@ -224,7 +421,6 @@ export class UsersService {
       targetType: 'User',
       reason: banUserDto.reason,
     });
-
     return bannedUser;
   }
 
@@ -233,9 +429,8 @@ export class UsersService {
     requestingUser: UserDocument,
   ): Promise<UserDocument> {
     const userToUnban = await this.findById(idToUnban);
-    if (!userToUnban) {
+    if (!userToUnban)
       throw new NotFoundException(`User with ID "${idToUnban}" not found.`);
-    }
 
     userToUnban.accountStatus = 'active';
     userToUnban.banReason = undefined;
@@ -249,14 +444,12 @@ export class UsersService {
         'Your account suspension has been lifted. You can now log in and access all features.',
       );
     }
-
     await this.auditService.createLog({
       actor: requestingUser,
       action: AuditAction.USER_ACCOUNT_UNBANNED,
       targetId: unbannedUser._id,
       targetType: 'User',
     });
-
     return unbannedUser;
   }
 
@@ -265,14 +458,13 @@ export class UsersService {
     updateUserDto: UpdateUserDto,
   ): Promise<UserDocument> {
     const user = await this.userModel.findById(id).exec();
-    if (!user) {
-      throw new NotFoundException(`User with ID "${id}" not found`);
-    }
+    if (!user) throw new NotFoundException(`User with ID "${id}" not found`);
+
     if (
       updateUserDto.email &&
       updateUserDto.email.toLowerCase() !== user.email
     ) {
-      const existing = await this.findOneByEmail(updateUserDto.email);
+      const existing = await this.findOneByEmailForAuth(updateUserDto.email);
       if (existing && existing.id !== user.id) {
         throw new ConflictException(
           'Email is already in use by another account.',
@@ -288,23 +480,20 @@ export class UsersService {
     requestingUser: UserDocument,
   ): Promise<UserDocument> {
     const userToDelete = await this.userModel.findById(id).exec();
-    if (!userToDelete) {
+    if (!userToDelete)
       throw new NotFoundException(`User with ID "${id}" not found`);
-    }
-    if (userToDelete.id === requestingUser.id) {
+    if (userToDelete.id === requestingUser.id)
       throw new ForbiddenException(
         'You cannot delete your own account via this endpoint.',
       );
-    }
-    if (userToDelete.roles.includes(Role.Owner)) {
+    if (userToDelete.roles.includes(Role.Owner))
       throw new ForbiddenException('The Owner account cannot be deleted.');
-    }
+
     const deletedUser = await this.userModel.findByIdAndDelete(id).exec();
     if (!deletedUser) {
-      throw new NotFoundException(
-        `User with ID "${id}" not found for deletion.`,
-      );
+      throw new NotFoundException(`User with ID "${id}" could not be deleted.`);
     }
+
     await this.auditService.createLog({
       actor: requestingUser,
       action: AuditAction.USER_ACCOUNT_DELETED,

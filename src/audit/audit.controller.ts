@@ -1,4 +1,3 @@
-// src/audit/audit.controller.ts
 import {
   Controller,
   Get,
@@ -29,7 +28,7 @@ class PaginationMetadata {
   @ApiProperty() totalPages: number;
 }
 class PaginatedAuditLogResponse {
-  @ApiProperty() success: boolean;
+  @ApiProperty({ default: true }) success: boolean;
   @ApiProperty({ type: [AuditLog] }) data: AuditLog[];
   @ApiProperty({ type: PaginationMetadata }) pagination: PaginationMetadata;
 }
@@ -41,7 +40,7 @@ export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
   @Get()
-  @Roles(Role.Owner) // Only Owners can view audit logs
+  @Roles(Role.Owner)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all audit logs (Owner only)' })
   @ApiQuery({

@@ -1,5 +1,3 @@
-// src/auth/auth.controller.ts
-
 import {
   Controller,
   Get,
@@ -21,8 +19,12 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { Request as ExpressRequest } from 'express';
-
-import { AuthService, AuthTokenResponse, SanitizedUser } from './auth.service';
+import {
+  AuthService,
+  AuthTokenResponse,
+  SanitizedUser,
+  TwoFactorRequiredResponse, // Import the new type
+} from './auth.service';
 import { ConfigService } from '@nestjs/config';
 import { UserDocument } from '../users/schemas/user.schema';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -34,13 +36,6 @@ import { Disable2faDto } from './dto/disable-2fa.dto';
 
 interface OAuthState {
   finalRedirectUri?: string;
-}
-
-// A simple, type-safe interface for the Google callback request
-interface GoogleCallbackRequest extends ExpressRequest {
-  query: {
-    state?: string;
-  };
 }
 
 @ApiTags('auth')
@@ -57,24 +52,23 @@ export class AuthController {
   @ApiOperation({ summary: 'Log in with email and password' })
   @ApiResponse({
     status: 200,
-    description: 'Login successful (for non-2FA users) OR 2FA is required.',
+    description: 'Login successful or 2FA required.',
   })
   @ApiResponse({ status: 401, description: 'Invalid credentials.' })
-  login(@Body() loginDto: LoginDto) {
+  // --- THIS IS THE FIX ---
+  async login(
+    @Body() loginDto: LoginDto,
+  ): Promise<AuthTokenResponse | TwoFactorRequiredResponse> {
     return this.authService.login(loginDto);
   }
+  // --- END OF FIX ---
 
   @Post('2fa/verify-code')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Verify the 2FA email code to complete the login process',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful.',
-  })
+  @ApiOperation({ summary: 'Verify the 2FA email code to complete login' })
+  @ApiResponse({ status: 200, description: 'Login successful.' })
   @ApiResponse({ status: 401, description: 'Invalid or expired code.' })
-  async loginWith2faCode(
+  loginWith2faCode(
     @Body() login2faDto: Login2faDto,
   ): Promise<AuthTokenResponse> {
     return this.authService.loginWith2faCode(login2faDto);
@@ -113,13 +107,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Google OAuth callback URL' })
   @Redirect()
   googleAuthRedirect(
-    // <-- REMOVED `async` as it is not needed
     @CurrentUser() user: UserDocument,
-    @Req() req: GoogleCallbackRequest, // <-- FIX 1: Use the type-safe interface
+    @Req() req: ExpressRequest,
   ) {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
-    let defaultSuccessUrl = `${frontendUrl}/auth/google/callback`;
-    const state = req.query.state; // This is now safe
+    if (!frontendUrl) {
+      throw new InternalServerErrorException('FRONTEND_URL not configured.');
+    }
+
+    let finalRedirectUrl = `${frontendUrl}/auth/google/callback`;
+    const state = req.query.state as string | undefined;
 
     if (state) {
       try {
@@ -127,7 +124,7 @@ export class AuthController {
           decodeURIComponent(state),
         ) as OAuthState;
         if (decodedState.finalRedirectUri) {
-          defaultSuccessUrl = decodedState.finalRedirectUri;
+          finalRedirectUrl = decodedState.finalRedirectUri;
         }
       } catch {
         this.logger.warn('Could not parse OAuth state parameter.');
@@ -141,9 +138,8 @@ export class AuthController {
       return { url: errorUrl.toString() };
     }
 
-    // FIX 2: Removed `await` from a synchronous function call
     const authResult = this.authService.getFullAccessToken(user);
-    const redirectUrl = new URL(defaultSuccessUrl);
+    const redirectUrl = new URL(finalRedirectUrl);
     redirectUrl.searchParams.set('token', authResult.accessToken);
     return { url: redirectUrl.toString() };
   }
@@ -175,7 +171,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Acknowledge user logout' })
   logout(): { message: string } {
-    return { message: 'Logout acknowledged. Please clear your token.' };
+    return {
+      message:
+        'Logout acknowledged. Please clear your token on the client-side.',
+    };
   }
 
   @Get('status')
@@ -188,16 +187,6 @@ export class AuthController {
         'User not found after JWT validation.',
       );
     }
-    return {
-      _id: user._id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      picture: user.picture,
-      roles: user.roles,
-      is2FAEnabled: user.is2FAEnabled,
-      accountStatus: user.accountStatus,
-      banReason: user.banReason,
-    };
+    return this.authService.sanitizeUser(user);
   }
 }

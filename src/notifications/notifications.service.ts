@@ -1,16 +1,18 @@
-// src/notifications/notifications.service.ts
-
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, Types, FilterQuery } from 'mongoose';
 import {
   Notification,
   NotificationDocument,
   NotificationType,
 } from './schemas/notification.schema';
+import { CreateNotificationDto } from './dto/create-notification.dto';
+import { User, UserDocument } from '../users/schemas/user.schema';
+import { SettingsService } from '../settings/settings.service';
+import { EmailService } from '../email/email.service';
+import { ConfigService } from '@nestjs/config';
 
-interface CreateNotificationPayload {
-  userId: string | Types.ObjectId;
+interface GlobalNotificationPayload {
   title: string;
   message: string;
   type: NotificationType;
@@ -24,29 +26,94 @@ export class NotificationsService {
   constructor(
     @InjectModel(Notification.name)
     private notificationModel: Model<NotificationDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private readonly settingsService: SettingsService,
+    private readonly emailService: EmailService,
+    private readonly configService: ConfigService,
   ) {}
 
   async createNotification(
-    payload: CreateNotificationPayload,
+    payload: CreateNotificationDto,
   ): Promise<NotificationDocument> {
-    const userIdString = payload.userId.toString(); // Use .toString()
-    this.logger.log(`Creating notification for user ${userIdString}`);
-
+    this.logger.log(
+      `Creating notification for user ${payload.userId.toString()}`,
+    );
     const notification = new this.notificationModel(payload);
     return notification.save();
+  }
+
+  async createGlobalNotification(
+    payload: GlobalNotificationPayload,
+  ): Promise<void> {
+    this.logger.log(`Creating global notification: ${payload.title}`);
+    const allUserIds = await this.userModel.find({}, '_id').lean().exec();
+
+    const notificationPayloads = allUserIds.map((user) => ({
+      userId: user._id,
+      ...payload,
+    }));
+
+    if (notificationPayloads.length > 0) {
+      await this.notificationModel.insertMany(notificationPayloads, {
+        ordered: false,
+      });
+    }
+
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+
+    // Handle email notifications separately based on preferences
+    for (const user of await this.userModel
+      .find({}, 'email _id')
+      .lean()
+      .exec()) {
+      if (!user.email) continue;
+      try {
+        const settings = await this.settingsService.findOrCreateByUserId(
+          user._id.toString(),
+        );
+        if (settings.notificationPreferences.allowAnnouncementEmails) {
+          const fullLink = payload.linkUrl
+            ? `${frontendUrl}${payload.linkUrl}`
+            : frontendUrl;
+          // Reusing sendAccountStatusEmail for a generic announcement template
+          await this.emailService.sendAccountStatusEmail(
+            user.email,
+            payload.title,
+            payload.title,
+            `${payload.message}<br><br><a href="${fullLink}">View Details</a>`,
+          );
+        }
+      } catch (err) {
+        this.logger.error(
+          `Failed to send announcement email to ${user.email}`,
+          err,
+        );
+      }
+    }
   }
 
   async getNotificationsForUser(
     userId: string,
     page: number = 1,
     limit: number = 10,
+    isRead?: boolean,
+    type?: NotificationType,
   ): Promise<{
     data: NotificationDocument[];
     total: number;
     hasMore: boolean;
   }> {
     const skip = (page - 1) * limit;
-    const filter = { userId };
+    const filter: FilterQuery<NotificationDocument> = {
+      userId: new Types.ObjectId(userId),
+    };
+
+    if (isRead !== undefined) {
+      filter.isRead = isRead;
+    }
+    if (type) {
+      filter.type = type;
+    }
 
     const [data, total] = await Promise.all([
       this.notificationModel
@@ -60,7 +127,7 @@ export class NotificationsService {
     ]);
 
     return {
-      data,
+      data: data as NotificationDocument[],
       total,
       hasMore: page * limit < total,
     };
@@ -68,7 +135,7 @@ export class NotificationsService {
 
   async getUnreadCount(userId: string): Promise<{ count: number }> {
     const count = await this.notificationModel.countDocuments({
-      userId,
+      userId: new Types.ObjectId(userId),
       isRead: false,
     });
     return { count };
@@ -77,34 +144,43 @@ export class NotificationsService {
   async markAsRead(
     notificationId: string,
     userId: string,
-  ): Promise<NotificationDocument | null> {
-    return this.notificationModel
+  ): Promise<NotificationDocument> {
+    const updatedNotification = await this.notificationModel
       .findOneAndUpdate(
-        { _id: notificationId, userId },
+        { _id: notificationId, userId: new Types.ObjectId(userId) },
         { isRead: true },
         { new: true },
       )
       .exec();
+
+    if (!updatedNotification) {
+      throw new NotFoundException(
+        'Notification not found or you do not have permission to access it.',
+      );
+    }
+    return updatedNotification;
   }
 
-  async markAllAsRead(
+  async markBatchAsRead(
     userId: string,
-    notificationIds?: string[],
+    notificationIds: string[],
   ): Promise<{ modifiedCount: number }> {
-    const filter: { userId: string; isRead: boolean; _id?: { $in: string[] } } =
+    const result = await this.notificationModel.updateMany(
       {
-        userId,
+        userId: new Types.ObjectId(userId),
+        _id: { $in: notificationIds },
         isRead: false,
-      };
+      },
+      { $set: { isRead: true } },
+    );
+    return { modifiedCount: result.modifiedCount };
+  }
 
-    if (notificationIds && notificationIds.length > 0) {
-      filter._id = { $in: notificationIds };
-    }
-
-    const result = await this.notificationModel.updateMany(filter, {
-      $set: { isRead: true },
-    });
-
+  async markAllAsRead(userId: string): Promise<{ modifiedCount: number }> {
+    const result = await this.notificationModel.updateMany(
+      { userId: new Types.ObjectId(userId), isRead: false },
+      { $set: { isRead: true } },
+    );
     return { modifiedCount: result.modifiedCount };
   }
 }

@@ -1,4 +1,3 @@
-// src/support/dto/create-public-ticket.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsString,

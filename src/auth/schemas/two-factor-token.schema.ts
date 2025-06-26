@@ -7,9 +7,9 @@ export class TwoFactorToken extends Document {
   userId: Types.ObjectId;
 
   @Prop({ required: true })
-  token: string; // This will store the HASHED token
+  token: string; // Stores the HASHED 6-digit code
 
-  @Prop({ required: true })
+  @Prop({ required: true, index: { expires: '10m' } }) // Automatically deletes after 10 minutes
   expiresAt: Date;
 }
 

@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
   Body,
+  ParseBoolPipe,
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -18,11 +19,13 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserDocument } from '../users/schemas/user.schema';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 import { MarkNotificationsReadDto } from './dto/mark-read.dto';
+import { NotificationType } from './schemas/notification.schema';
 
 @ApiTags('notifications')
 @ApiBearerAuth()
@@ -33,15 +36,31 @@ export class NotificationsController {
 
   @Get()
   @ApiOperation({ summary: "Get the current user's notifications" })
+  @ApiQuery({
+    name: 'isRead',
+    required: false,
+    type: Boolean,
+    description: 'Filter by read status (true/false). Omit to get all.',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: NotificationType,
+    description: 'Filter by notification type. Omit to get all.',
+  })
   getNotifications(
     @CurrentUser() user: UserDocument,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('isRead', new ParseBoolPipe({ optional: true })) isRead?: boolean,
+    @Query('type') type?: NotificationType,
   ) {
     return this.notificationsService.getNotificationsForUser(
       user._id.toString(),
       page,
       limit,
+      isRead,
+      type,
     );
   }
 
@@ -65,7 +84,7 @@ export class NotificationsController {
     @CurrentUser() user: UserDocument,
     @Body() dto: MarkNotificationsReadDto,
   ) {
-    return this.notificationsService.markAllAsRead(
+    return this.notificationsService.markBatchAsRead(
       user._id.toString(),
       dto.notificationIds,
     );

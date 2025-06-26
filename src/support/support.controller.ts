@@ -1,5 +1,3 @@
-// src/support/support.controller.ts
-
 import {
   Controller,
   Post,
@@ -23,9 +21,9 @@ import { Role } from '../common/enums/role.enum';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { CreatePublicTicketDto } from './dto/create-public-ticket.dto';
 import { AuthGuard } from '@nestjs/passport';
-// --- THIS IS THE CORRECTED IMPORT PATH TO MATCH YOUR STRUCTURE ---
 import { BannedUserGuard } from '../common/guards/banned-user.guard';
 import { CreateAppealDto } from './dto/create-appeal.dto';
+import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 
 @Controller('support')
 export class SupportController {
@@ -62,7 +60,7 @@ export class SupportController {
   @Post('tickets/:id/messages')
   @UseGuards(AuthGuard('jwt'), ThrottlerGuard)
   addMessage(
-    @Param('id') id: string,
+    @Param('id', ParseObjectIdPipe) id: string,
     @Body(new ValidationPipe()) addMessageDto: UpdateSupportDto,
     @CurrentUser() user: UserDocument,
   ) {
@@ -72,19 +70,28 @@ export class SupportController {
   @Post('tickets/:id/seen')
   @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.OK)
-  markAsSeen(@Param('id') id: string, @CurrentUser() user: UserDocument) {
+  markAsSeen(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: UserDocument,
+  ) {
     return this.supportService.markTicketAsSeen(id, user);
   }
 
   @Get('tickets')
   @UseGuards(AuthGuard('jwt'))
   getTicketsForUser(@CurrentUser() user: UserDocument) {
+    // --- THIS IS THE FIX ---
+    // Pass the ObjectId directly, not a string version of it.
     return this.supportService.getTicketsForUser(user._id);
+    // --- END OF FIX ---
   }
 
   @Get('tickets/:id')
   @UseGuards(AuthGuard('jwt'))
-  getTicketById(@Param('id') id: string, @CurrentUser() user: UserDocument) {
+  getTicketById(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: UserDocument,
+  ) {
     return this.supportService.getTicketById(id, user);
   }
 
@@ -99,7 +106,10 @@ export class SupportController {
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.Admin, Role.Owner)
   @HttpCode(HttpStatus.OK)
-  closeTicket(@Param('id') id: string, @CurrentUser() user: UserDocument) {
+  closeTicket(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: UserDocument,
+  ) {
     return this.supportService.closeTicket(id, user);
   }
 }

@@ -1,5 +1,3 @@
-// src/audit/schemas/audit-log.schema.ts
-
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { ApiProperty } from '@nestjs/swagger';
@@ -10,7 +8,6 @@ export enum AuditAction {
   USER_ACCOUNT_DELETED = 'USER_ACCOUNT_DELETED',
   TFA_ENABLED = 'TFA_ENABLED',
   TFA_DISABLED = 'TFA_DISABLED',
-  // --- THESE MEMBERS ARE ADDED ---
   USER_ACCOUNT_BANNED = 'USER_ACCOUNT_BANNED',
   USER_ACCOUNT_UNBANNED = 'USER_ACCOUNT_UNBANNED',
 }

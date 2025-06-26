@@ -39,6 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: JwtPayload): Promise<UserDocument> {
+    // This check is good practice to ensure only fully authenticated tokens can access routes.
     if (!payload.isTwoFactorAuthenticationComplete) {
       throw new UnauthorizedException(
         'Two-factor authentication has not been completed.',

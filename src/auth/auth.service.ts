@@ -1,5 +1,3 @@
-// src/auth/auth.service.ts
-
 import {
   Injectable,
   InternalServerErrorException,
@@ -22,14 +20,10 @@ import { Role } from '../common/enums/role.enum';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/schemas/audit-log.schema';
-import { SettingsService } from '../settings/settings.service';
-import { NotificationsService } from '../notifications/notifications.service';
-import { NotificationType } from '../notifications/schemas/notification.schema';
 import {
   PasswordResetToken,
   PasswordResetToken as PasswordResetTokenDocument,
 } from './schemas/password-reset-token.schema';
-import { TwoFactorToken } from './schemas/two-factor-token.schema';
 import { LoginDto } from './dto/login.dto';
 import { Login2faDto } from './dto/login-2fa.dto';
 import { Disable2faDto } from './dto/disable-2fa.dto';
@@ -67,29 +61,32 @@ export interface TwoFactorRequiredResponse {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private static readonly MAX_2FA_ATTEMPTS = 5;
 
   constructor(
     @InjectModel(PasswordResetToken.name)
     private passwordResetTokenModel: Model<PasswordResetTokenDocument>,
-    @InjectModel(TwoFactorToken.name)
-    private twoFactorTokenModel: Model<TwoFactorToken>,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
     private readonly auditService: AuditService,
     private readonly configService: ConfigService,
-    private readonly settingsService: SettingsService,
-    private readonly notificationsService: NotificationsService,
   ) {}
 
   async login(
     loginDto: LoginDto,
   ): Promise<AuthTokenResponse | TwoFactorRequiredResponse> {
     const { email, password } = loginDto;
-    const user = await this.usersService.findOneByEmail(email);
+    const user = await this.usersService.findOneByEmailForAuth(email);
 
     if (!user || !user.password) {
       throw new UnauthorizedException('Invalid credentials.');
+    }
+
+    if (user.twoFactorLockoutUntil && new Date() < user.twoFactorLockoutUntil) {
+      throw new ForbiddenException(
+        'Account is temporarily locked due to too many failed login attempts. Please try again later.',
+      );
     }
 
     const isPasswordMatch = await bcrypt.compare(password, user.password);
@@ -99,13 +96,12 @@ export class AuthService {
 
     if (user.is2FAEnabled) {
       if (!user.email) {
-        this.logger.error(`User ${user.id} has 2FA enabled but no email.`);
         throw new InternalServerErrorException(
           'Two-factor authentication cannot proceed without a verified email.',
         );
       }
       await this.generateAndSend2faCode(user);
-      return { isTwoFactorRequired: true, userId: user.id as string };
+      return { isTwoFactorRequired: true, userId: user._id.toString() };
     }
 
     await this.usersService.updateLastLogin(user._id);
@@ -114,29 +110,59 @@ export class AuthService {
 
   async loginWith2faCode(login2faDto: Login2faDto): Promise<AuthTokenResponse> {
     const { userId, code } = login2faDto;
-    const user = await this.usersService.findById(userId);
-    if (!user) {
-      throw new UnauthorizedException('Invalid user for 2FA verification.');
+    const user = await this.usersService.findByIdForAuth(userId);
+
+    if (
+      !user ||
+      !user.is2FAEnabled ||
+      !user.twoFactorAuthenticationCode ||
+      !user.twoFactorAuthenticationCodeExpires
+    ) {
+      throw new UnauthorizedException('Invalid 2FA request.');
     }
 
-    const twoFactorToken = await this.twoFactorTokenModel.findOne({ userId });
-    if (!twoFactorToken) {
-      throw new UnauthorizedException('2FA code not found or expired.');
-    }
-
-    if (new Date() > twoFactorToken.expiresAt) {
-      await twoFactorToken.deleteOne();
-      throw new UnauthorizedException(
-        '2FA code has expired. Please log in again.',
+    if (user.twoFactorLockoutUntil && new Date() < user.twoFactorLockoutUntil) {
+      const minutesRemaining = Math.ceil(
+        (user.twoFactorLockoutUntil.getTime() - Date.now()) / 60000,
+      );
+      throw new ForbiddenException(
+        `Account locked. Please try again in ${minutesRemaining} minutes.`,
       );
     }
 
-    const isCodeMatch = await bcrypt.compare(code, twoFactorToken.token);
-    if (!isCodeMatch) {
-      throw new UnauthorizedException('Invalid 2FA code.');
+    if (new Date() > user.twoFactorAuthenticationCodeExpires) {
+      throw new UnauthorizedException(
+        'Code has expired. Please log in again to get a new code.',
+      );
     }
 
-    await twoFactorToken.deleteOne();
+    const isCodeMatch = await bcrypt.compare(
+      code,
+      user.twoFactorAuthenticationCode,
+    );
+
+    if (!isCodeMatch) {
+      user.twoFactorAttempts = (user.twoFactorAttempts || 0) + 1;
+      if (user.twoFactorAttempts >= AuthService.MAX_2FA_ATTEMPTS) {
+        user.twoFactorLockoutUntil = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+        user.twoFactorAttempts = 0; // Reset attempts after lockout
+        await user.save();
+        this.logger.warn(`User ${user.id} locked out due to 2FA failures.`);
+        throw new ForbiddenException(
+          'Too many failed attempts. Your account is locked for 24 hours for security.',
+        );
+      }
+      await user.save();
+      throw new UnauthorizedException('Invalid two-factor code.');
+    }
+
+    // On success, reset attempts and clear codes
+    user.twoFactorAttempts = 0;
+    user.twoFactorLockoutUntil = undefined;
+    user.twoFactorAuthenticationCode = undefined;
+    user.twoFactorAuthenticationCodeExpires = undefined;
+    await user.save();
+
     await this.usersService.updateLastLogin(user._id);
     return this.getFullAccessToken(user);
   }
@@ -163,12 +189,18 @@ export class AuthService {
     }
     if (!user.password) {
       throw new ForbiddenException(
-        'Cannot disable 2FA for accounts without a password.',
+        'Cannot disable 2FA for accounts without a password (e.g., Google sign-in only).',
+      );
+    }
+    const userWithPassword = await this.usersService.findByIdForAuth(user._id);
+    if (!userWithPassword?.password) {
+      throw new InternalServerErrorException(
+        'Could not retrieve user password for verification.',
       );
     }
     const isPasswordMatch = await bcrypt.compare(
       disable2faDto.password,
-      user.password,
+      userWithPassword.password,
     );
     if (!isPasswordMatch) {
       throw new UnauthorizedException('Invalid password.');
@@ -185,18 +217,16 @@ export class AuthService {
   private async generateAndSend2faCode(user: UserDocument): Promise<void> {
     if (!user.email) return;
 
-    await this.twoFactorTokenModel.deleteMany({ userId: user._id });
-
     const code = crypto.randomInt(100000, 999999).toString();
     const hashedCode = await bcrypt.hash(code, 10);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes validity
 
-    await this.twoFactorTokenModel.create({
-      userId: user._id,
-      token: hashedCode,
-      expiresAt,
-    });
+    user.twoFactorAuthenticationCode = hashedCode;
+    user.twoFactorAuthenticationCodeExpires = expiresAt;
+    user.twoFactorAttempts = 0; // Reset attempts every time a new code is generated
+    await user.save();
 
+    // Critical security email, bypasses notification preferences
     await this.emailService.sendTwoFactorLoginCodeEmail(user.email, code);
   }
 
@@ -209,8 +239,11 @@ export class AuthService {
     };
     const accessToken = this.jwtService.sign(payload);
 
-    // This manual construction is the most robust way to satisfy the linter.
-    const sanitizedUser: SanitizedUser = {
+    return { accessToken, user: this.sanitizeUser(user) };
+  }
+
+  sanitizeUser(user: UserDocument): SanitizedUser {
+    return {
       _id: user._id,
       email: user.email,
       firstName: user.firstName,
@@ -221,22 +254,21 @@ export class AuthService {
       accountStatus: user.accountStatus,
       banReason: user.banReason,
     };
-
-    return { accessToken, user: sanitizedUser };
   }
 
   async handleForgotPasswordRequest(email: string): Promise<void> {
-    const user = await this.usersService.findOneByEmail(email);
-    if (!user || user.googleId) {
+    const user = await this.usersService.findOneByEmailForAuth(email);
+    if (!user || !user.password) {
       this.logger.warn(
-        `Password reset requested for non-existent or OAuth user: ${email}. Responding with generic success to prevent enumeration.`,
+        `Password reset requested for non-existent or passwordless user: ${email}.`,
       );
       return;
     }
+
     const rawToken = crypto.randomBytes(32).toString('hex');
     const hashedToken = await bcrypt.hash(rawToken, 10);
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 1);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
     await this.passwordResetTokenModel.create({
       userId: user._id,
       token: hashedToken,
@@ -247,9 +279,11 @@ export class AuthService {
 
   async handleResetPassword(resetPasswordDto: ResetPasswordDto): Promise<void> {
     const { token: rawToken, password } = resetPasswordDto;
-    const potentialTokens = await this.passwordResetTokenModel
-      .find({ expiresAt: { $gt: new Date() } })
-      .populate('userId');
+
+    const potentialTokens = await this.passwordResetTokenModel.find({
+      expiresAt: { $gt: new Date() },
+    });
+
     let validTokenDoc: PasswordResetTokenDocument | null = null;
     for (const doc of potentialTokens) {
       if (await bcrypt.compare(rawToken, doc.token)) {
@@ -257,15 +291,19 @@ export class AuthService {
         break;
       }
     }
-    if (!validTokenDoc || !validTokenDoc.userId) {
+
+    if (!validTokenDoc) {
       throw new BadRequestException('Invalid or expired password reset token.');
     }
+
     const user = await this.usersService.findById(validTokenDoc.userId);
     if (!user) {
+      await this.passwordResetTokenModel.findByIdAndDelete(validTokenDoc._id);
       throw new NotFoundException(
         'User associated with this token no longer exists.',
       );
     }
+
     user.password = password;
     await user.save();
     await this.passwordResetTokenModel.findByIdAndDelete(validTokenDoc._id);
@@ -280,11 +318,12 @@ export class AuthService {
   ): Promise<UserDocument> {
     this.logger.log(`Validating OAuth login for email: ${email}`);
     try {
-      let user = await this.usersService.findOneByEmail(email);
-      let isNewUser = false;
+      let user = await this.usersService.findOneByEmailForAuth(email);
 
       if (user) {
-        if (!user.googleId) user.googleId = googleId;
+        if (!user.googleId) {
+          user.googleId = googleId;
+        }
         user.firstName = firstName || user.firstName;
         user.lastName = lastName || user.lastName;
         user.picture = picture || user.picture;
@@ -301,41 +340,13 @@ export class AuthService {
       }
 
       this.logger.log(`Creating new user for email: ${email}`);
-      isNewUser = true;
-      const newUser = await this.usersService.create({
+      return await this.usersService.create({
         googleId,
         email,
         firstName,
         lastName,
         picture,
       });
-
-      if (isNewUser) {
-        this.logger.log(`Performing post-creation actions for ${newUser.id}`);
-        const welcomeName = newUser.firstName || 'there';
-
-        const userSettings = await this.settingsService.findOrCreateByUserId(
-          newUser._id.toString(),
-        );
-
-        await this.notificationsService.createNotification({
-          userId: newUser._id,
-          title: 'Welcome to Cirql! 🎉',
-          message:
-            'We are thrilled to have you on board. Explore your profile to get started.',
-          type: NotificationType.WELCOME,
-          linkUrl: '/profile/me',
-        });
-
-        if (
-          newUser.email &&
-          userSettings.notificationPreferences.emailNotifications
-        ) {
-          await this.emailService.sendWelcomeEmail(newUser.email, welcomeName);
-        }
-      }
-
-      return newUser;
     } catch (err: unknown) {
       const error = err as Error;
       this.logger.error(

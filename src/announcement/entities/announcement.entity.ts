@@ -18,19 +18,19 @@ export class Announcement {
   @Prop({ required: true })
   content: string;
 
-  @Prop({ required: true })
+  @Prop({ required: true, enum: AnnouncementType })
   type: AnnouncementType;
 
   @Prop({ default: true })
   visible: boolean;
 
   @Prop({ type: Date, nullable: true, default: null })
-  expirationDate?: Date | null; // expirationDate is optional
+  expirationDate?: Date | null;
 
-  @Prop()
+  @Prop({ required: false })
   imageUrl?: string;
 
-  @Prop()
+  @Prop({ required: false })
   linkUrl?: string;
 }
 

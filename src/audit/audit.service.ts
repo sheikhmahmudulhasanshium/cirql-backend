@@ -1,4 +1,3 @@
-// src/audit/audit.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -35,8 +34,8 @@ export class AuditService {
       await logEntry.save();
     } catch (error) {
       this.logger.error('Failed to create audit log', error);
-      // IMPORTANT: We do not re-throw the error. A failure to create an
-      // audit log should not cause the primary user action (e.g., role change) to fail.
+      // We do not re-throw the error. A failure to create an
+      // audit log should not cause the primary user action to fail.
     }
   }
 
@@ -46,7 +45,7 @@ export class AuditService {
     const [logs, total] = await Promise.all([
       this.auditLogModel
         .find()
-        .populate('actor', 'id firstName lastName email') // Populate actor with specific fields
+        .populate('actor', 'id firstName lastName email') // Populate with specific, safe fields
         .sort({ createdAt: -1 }) // Show newest logs first
         .skip(skip)
         .limit(limit)
@@ -55,6 +54,6 @@ export class AuditService {
       this.auditLogModel.countDocuments().exec(),
     ]);
 
-    return { data: logs, total, page, limit };
+    return { data: logs as AuditLog[], total, page, limit };
   }
 }

@@ -1,4 +1,3 @@
-// src/auth/schemas/password-reset-token.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
@@ -8,9 +7,9 @@ export class PasswordResetToken extends Document {
   userId: Types.ObjectId;
 
   @Prop({ required: true, unique: true })
-  token: string; // This will store the HASHED token
+  token: string; // Stores the HASHED token
 
-  @Prop({ required: true })
+  @Prop({ required: true, index: { expires: '1h' } }) // Automatically deletes after 1 hour
   expiresAt: Date;
 }
 

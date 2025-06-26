@@ -1,5 +1,3 @@
-// src/common/pipes/parse-object-id.pipe.ts
-
 import {
   PipeTransform,
   Injectable,
@@ -18,7 +16,7 @@ export class ParseObjectIdPipe implements PipeTransform<string, string> {
   transform(value: string, metadata: ArgumentMetadata): string {
     if (!isValidObjectId(value)) {
       throw new BadRequestException(
-        `Invalid MongoDB ObjectId: "${value}" for parameter "${metadata.data}"`,
+        `Invalid ID format: "${value}" for parameter "${metadata.data}" is not a valid MongoDB ObjectId.`,
       );
     }
     // Return the original, validated string. Mongoose will handle the conversion.

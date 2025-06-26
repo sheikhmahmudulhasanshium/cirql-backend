@@ -34,11 +34,11 @@ export class CreateAnnouncementDto {
     required: false,
     description:
       'Expiration date (ISO format or null for no expiration, optional field)',
-    nullable: true, // Allow null
+    nullable: true,
   })
-  @IsOptional() // Make the entire property optional
-  @IsDateString() // Keep this to validate if provided
-  expirationDate?: string | null; // Change the type to string | null
+  @IsOptional()
+  @IsDateString()
+  expirationDate?: string | null;
 
   @ApiProperty({ required: false, description: 'Image URL' })
   @IsOptional()

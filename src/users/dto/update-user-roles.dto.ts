@@ -1,4 +1,3 @@
-// src/users/dto/update-user-roles.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 import { IsArray, IsEnum } from 'class-validator';
 import { Role } from '../../common/enums/role.enum';
@@ -11,6 +10,9 @@ export class UpdateUserRolesDto {
     example: [Role.User, Role.Admin],
   })
   @IsArray()
-  @IsEnum(Role, { each: true })
+  @IsEnum(Role, {
+    each: true,
+    message: 'Each role must be a valid role value.',
+  })
   roles: Role[];
 }

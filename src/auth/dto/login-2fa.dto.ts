@@ -7,7 +7,7 @@ export class Login2faDto {
     example: '60f8f8f8f8f8f8f8f8f8f8f8',
   })
   @IsNotEmpty()
-  @IsMongoId()
+  @IsMongoId({ message: 'User ID must be a valid MongoDB ObjectId.' })
   userId: string;
 
   @ApiProperty({

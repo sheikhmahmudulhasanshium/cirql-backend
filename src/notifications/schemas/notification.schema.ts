@@ -6,7 +6,8 @@ export type NotificationDocument = Notification & Document;
 export enum NotificationType {
   WELCOME = 'welcome',
   ANNOUNCEMENT = 'announcement',
-  FRIEND_REQUEST = 'friend_request',
+  SUPPORT_REPLY = 'support_reply',
+  SOCIAL = 'social', // Placeholder for future use
 }
 
 @Schema({ timestamps: true })

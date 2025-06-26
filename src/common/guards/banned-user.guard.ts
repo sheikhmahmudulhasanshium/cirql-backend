@@ -7,8 +7,8 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { UserDocument } from '../../users/schemas/user.schema';
+import { Request } from 'express';
 
-// This assumes your request object has a user property after the JWT guard runs.
 interface AuthenticatedRequest extends Request {
   user: UserDocument;
 }
@@ -19,17 +19,17 @@ export class BannedUserGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const user = request.user;
 
-    // The standard AuthGuard('jwt') should already ensure a user exists.
+    // This guard should only be used after a guard that attaches the user (e.g., AuthGuard('jwt'))
     if (!user) {
-      return false; // Should not happen if AuthGuard is used first.
+      // Deny access if user object is not present, though this shouldn't happen in a proper setup.
+      return false;
     }
 
-    // This guard ONLY allows access if the user's status is 'banned'.
     if (user.accountStatus === 'banned') {
-      return true;
+      return true; // Allow access if user is banned.
     }
 
-    // If the user is active or has any other status, they are forbidden.
+    // For any other status, deny access.
     throw new ForbiddenException(
       'This action is only available for suspended accounts.',
     );
