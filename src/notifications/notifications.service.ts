@@ -38,8 +38,9 @@ export class NotificationsService {
     this.logger.log(
       `Creating notification for user ${payload.userId.toString()}`,
     );
-    // FIX: Use the universally safe two-step instantiation pattern.
-    const notification = new this.notificationModel(payload);
+    // FIX: Use the explicit new/assign/save pattern
+    const notification = new this.notificationModel();
+    Object.assign(notification, payload);
     return notification.save();
   }
 

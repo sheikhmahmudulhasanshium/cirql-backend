@@ -25,8 +25,9 @@ export class GroupsService {
     createGroupDto: CreateGroupDto,
   ): Promise<GroupDocument> {
     const ownerObjectId = new Types.ObjectId(ownerId);
-    // FIX: Use the universally safe two-step instantiation pattern.
-    const group = new this.groupModel({
+    // FIX: Use the explicit new/assign/save pattern
+    const group = new this.groupModel();
+    Object.assign(group, {
       ...createGroupDto,
       owner: ownerObjectId,
       members: [ownerObjectId], // The owner is always the first member

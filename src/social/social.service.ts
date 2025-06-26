@@ -41,7 +41,7 @@ export class SocialService {
       this.logger.log(
         `No social profile found for user ${userId}. Creating one.`,
       );
-      // FIX: Use the universally safe two-step instantiation pattern.
+      // FIX: Use the explicit new/assign/save pattern
       const newProfile = new this.socialProfileModel();
       newProfile.owner = new Types.ObjectId(userId);
       profile = await newProfile.save();

@@ -232,7 +232,8 @@ export class SupportService {
     user: UserDocument,
   ): Promise<TicketDocument> {
     const subject = `[Ban Appeal] - From User: ${user.firstName || user.email}`;
-    const newTicket = new this.ticketModel({
+    const newTicket = new this.ticketModel();
+    Object.assign(newTicket, {
       category: TicketCategory.OTHER,
       subject: subject,
       user: user._id,
@@ -270,7 +271,8 @@ export class SupportService {
   async createPublicTicket(
     dto: CreatePublicTicketDto,
   ): Promise<TicketDocument> {
-    const newTicket = new this.ticketModel({
+    const newTicket = new this.ticketModel();
+    Object.assign(newTicket, {
       category: dto.category,
       subject: `[${dto.category}] - New Inquiry from ${dto.name}`,
       guestName: dto.name,
@@ -321,7 +323,6 @@ export class SupportService {
       );
     const subject = `[${createTicketDto.category}] - ${createTicketDto.subject}`;
 
-    // FIX: Use the universally safe two-step instantiation pattern.
     const newTicket = new this.ticketModel();
     Object.assign(newTicket, {
       ...createTicketDto,

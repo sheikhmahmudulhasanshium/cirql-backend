@@ -13,7 +13,7 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    // FIX: Use the universally safe two-step instantiation pattern.
+    // FIX: Use the explicit new/assign/save pattern
     const newSettings = new this.settingModel();
     newSettings.userId = new Types.ObjectId(userId);
     return newSettings.save();
@@ -62,7 +62,7 @@ export class SettingsService {
 
     await this.settingModel.findByIdAndDelete(existingSettings._id);
 
-    // FIX: Use the universally safe two-step instantiation pattern.
+    // FIX: Use the explicit new/assign/save pattern
     const newDefaultSettings = new this.settingModel();
     newDefaultSettings._id = existingSettings._id;
     newDefaultSettings.userId = userObjectId;

@@ -69,7 +69,7 @@ export class FriendsService {
       );
     }
 
-    // FIX: Use the universally safe two-step instantiation pattern.
+    // FIX: Use the explicit new/assign/save pattern
     const newRequest = new this.friendRequestModel();
     newRequest.requester = new Types.ObjectId(requesterId);
     newRequest.recipient = new Types.ObjectId(recipientId);
