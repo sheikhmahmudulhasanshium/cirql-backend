@@ -41,10 +41,11 @@ export class SocialService {
       this.logger.log(
         `No social profile found for user ${userId}. Creating one.`,
       );
-      // FIX: Use .create() which is type-safe
-      profile = await this.socialProfileModel.create({
+      // FIX: Use the two-step new/save pattern to avoid TS2554
+      const newProfile = new this.socialProfileModel({
         owner: new Types.ObjectId(userId),
       });
+      profile = await newProfile.save();
     }
     return profile;
   }

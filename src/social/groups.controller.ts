@@ -1,29 +1,26 @@
-// src/social/groups.controller.ts
 import {
   Controller,
   Post,
   Body,
   UseGuards,
-  Req,
   Param,
   Patch,
   Delete,
+  HttpCode,
+  HttpStatus,
+  Get,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { Request } from 'express';
 
 import { GroupsService } from './groups.service';
 import { UserDocument } from '../users/schemas/user.schema';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
-
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { ManageGroupMemberDto } from './dto/manage-group-member.dto';
-
-interface AuthenticatedRequest extends Request {
-  user: UserDocument;
-}
+import { GroupDocument } from './schemas/group.schema';
 
 @ApiTags('Social - Groups')
 @ApiBearerAuth()
@@ -35,58 +32,67 @@ export class GroupsController {
   @Post()
   @ApiOperation({ summary: 'Create a new group' })
   createGroup(
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: UserDocument,
     @Body() createGroupDto: CreateGroupDto,
-  ) {
-    const ownerId = req.user._id.toString();
-    return { message: 'Create group endpoint', ownerId, ...createGroupDto };
+  ): Promise<GroupDocument> {
+    const ownerId = user._id.toString();
+    return this.groupsService.createGroup(ownerId, createGroupDto);
   }
 
   @Patch(':groupId')
   @ApiOperation({ summary: 'Update a group you own' })
   updateGroup(
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: UserDocument,
     @Param('groupId', ParseObjectIdPipe) groupId: string,
     @Body() updateGroupDto: UpdateGroupDto,
-  ) {
-    const ownerId = req.user._id.toString();
-    return {
-      message: 'Update group endpoint',
-      ownerId,
-      groupId,
-      ...updateGroupDto,
-    };
+  ): Promise<GroupDocument> {
+    const ownerId = user._id.toString();
+    return this.groupsService.updateGroup(ownerId, groupId, updateGroupDto);
   }
 
   @Post(':groupId/members')
   @ApiOperation({ summary: 'Add a member to a group' })
   addMember(
-    @Req() req: AuthenticatedRequest,
+    @CurrentUser() user: UserDocument,
     @Param('groupId', ParseObjectIdPipe) groupId: string,
     @Body() manageGroupMemberDto: ManageGroupMemberDto,
-  ) {
-    const requesterId = req.user._id.toString();
-    return {
-      message: 'Add member endpoint',
+  ): Promise<GroupDocument> {
+    const requesterId = user._id.toString();
+    return this.groupsService.addMember(
       requesterId,
       groupId,
-      ...manageGroupMemberDto,
-    };
+      manageGroupMemberDto.memberId,
+    );
   }
 
   @Delete(':groupId/members/:memberId')
   @ApiOperation({ summary: 'Remove a member from a group' })
-  removeMember(
-    @Req() req: AuthenticatedRequest,
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeMember(
+    @CurrentUser() user: UserDocument,
     @Param('groupId', ParseObjectIdPipe) groupId: string,
     @Param('memberId', ParseObjectIdPipe) memberId: string,
-  ) {
-    const requesterId = req.user._id.toString();
-    return {
-      message: 'Remove member endpoint',
-      requesterId,
-      groupId,
-      memberId,
-    };
+  ): Promise<void> {
+    const requesterId = user._id.toString();
+    await this.groupsService.removeMember(requesterId, groupId, memberId);
+  }
+
+  @Get(':groupId')
+  @ApiOperation({ summary: 'Get details of a specific group' })
+  getGroup(
+    @Param('groupId', ParseObjectIdPipe) groupId: string,
+  ): Promise<GroupDocument> {
+    return this.groupsService.getGroupById(groupId);
+  }
+
+  @Delete(':groupId')
+  @ApiOperation({ summary: 'Delete a group you own' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteGroup(
+    @CurrentUser() user: UserDocument,
+    @Param('groupId', ParseObjectIdPipe) groupId: string,
+  ): Promise<void> {
+    const ownerId = user._id.toString();
+    await this.groupsService.deleteGroup(ownerId, groupId);
   }
 }

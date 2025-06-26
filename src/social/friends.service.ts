@@ -69,11 +69,12 @@ export class FriendsService {
       );
     }
 
-    // FIX: Use .create() which is type-safe
-    const newRequest = await this.friendRequestModel.create({
+    // FIX: Use the two-step new/save pattern to avoid TS2554
+    const newRequest = new this.friendRequestModel({
       requester: requesterId,
       recipient: recipientId,
     });
+    await newRequest.save();
 
     await this.notificationsService.createNotification({
       userId: new Types.ObjectId(recipientId),

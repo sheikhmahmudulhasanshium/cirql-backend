@@ -80,12 +80,13 @@ export class SupportService {
       );
     }
 
-    const newMessage = await this.messageModel.create({
+    const newMessage = new this.messageModel({
       ticketId: ticket._id,
       sender: user._id,
       content: addMessageDto.content,
       attachments: addMessageDto.attachments || [],
     });
+    await newMessage.save();
 
     ticket.messages.push(newMessage._id);
 
@@ -231,7 +232,7 @@ export class SupportService {
     user: UserDocument,
   ): Promise<TicketDocument> {
     const subject = `[Ban Appeal] - From User: ${user.firstName || user.email}`;
-    const newTicket = await this.ticketModel.create({
+    const newTicket = new this.ticketModel({
       category: TicketCategory.OTHER,
       subject: subject,
       user: user._id,
@@ -244,13 +245,18 @@ export class SupportService {
       status: TicketStatus.OPEN,
       messages: [],
     });
-    const initialMessage = await this.messageModel.create({
+    await newTicket.save();
+
+    const initialMessage = new this.messageModel({
       ticketId: newTicket._id,
       sender: user._id,
       content: dto.message,
     });
+    await initialMessage.save();
+
     newTicket.messages.push(initialMessage._id);
     await newTicket.save();
+
     if (user.email) {
       await this.emailService.sendContactFormEmail({
         name: `${user.firstName || 'Banned User'} (ID: ${user.id})`,
@@ -264,7 +270,7 @@ export class SupportService {
   async createPublicTicket(
     dto: CreatePublicTicketDto,
   ): Promise<TicketDocument> {
-    const newTicket = await this.ticketModel.create({
+    const newTicket = new this.ticketModel({
       category: dto.category,
       subject: `[${dto.category}] - New Inquiry from ${dto.name}`,
       guestName: dto.name,
@@ -274,13 +280,18 @@ export class SupportService {
       lastSeenByAdminAt: null,
       lastSeenByUserAt: null,
     });
-    const initialMessage = await this.messageModel.create({
+    await newTicket.save();
+
+    const initialMessage = new this.messageModel({
       ticketId: newTicket._id,
       sender: new Types.ObjectId('000000000000000000000000'),
       content: dto.message,
     });
+    await initialMessage.save();
+
     newTicket.messages.push(initialMessage._id);
     await newTicket.save();
+
     try {
       await this.emailService.sendContactFormEmail({
         name: dto.name,
@@ -309,7 +320,8 @@ export class SupportService {
         'You can only create one ticket per minute.',
       );
     const subject = `[${createTicketDto.category}] - ${createTicketDto.subject}`;
-    const newTicket = await this.ticketModel.create({
+
+    const newTicket = new this.ticketModel({
       ...createTicketDto,
       subject,
       user: user._id,
@@ -317,12 +329,16 @@ export class SupportService {
       lastSeenByAdminAt: null,
       messages: [],
     });
-    const initialMessage = await this.messageModel.create({
+    await newTicket.save();
+
+    const initialMessage = new this.messageModel({
       ticketId: newTicket._id,
       sender: user._id,
       content: createTicketDto.initialMessage,
       attachments: createTicketDto.attachments || [],
     });
+    await initialMessage.save();
+
     newTicket.messages.push(initialMessage._id);
     await newTicket.save();
     return newTicket;

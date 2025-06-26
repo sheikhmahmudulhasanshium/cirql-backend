@@ -27,6 +27,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { OptionalAuthGuard } from '../common/guards/optional-auth.guard';
+import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 
 @ApiTags('announcements')
 @Controller('announcements')
@@ -74,7 +75,7 @@ export class AnnouncementsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseObjectIdPipe) id: string) {
     return this.announcementsService.findOne(id);
   }
 
@@ -83,7 +84,7 @@ export class AnnouncementsController {
   @Roles(Role.Admin, Role.Owner)
   @ApiBearerAuth()
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseObjectIdPipe) id: string,
     @Body() updateAnnouncementDto: UpdateAnnouncementDto,
     @CurrentUser() user: UserDocument,
   ) {
@@ -96,7 +97,10 @@ export class AnnouncementsController {
   @Roles(Role.Admin, Role.Owner)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id') id: string, @CurrentUser() user: UserDocument) {
+  async remove(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: UserDocument,
+  ) {
     const userId = user._id.toString();
     await this.announcementsService.remove(id, userId);
   }
