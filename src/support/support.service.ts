@@ -323,6 +323,7 @@ export class SupportService {
       );
     const subject = `[${createTicketDto.category}] - ${createTicketDto.subject}`;
 
+    // FIX: Use the universally safe new/assign/save pattern.
     const newTicket = new this.ticketModel();
     Object.assign(newTicket, {
       ...createTicketDto,
