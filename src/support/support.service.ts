@@ -80,7 +80,6 @@ export class SupportService {
       );
     }
 
-    // FIX: Use .create() to avoid constructor type conflicts.
     const newMessage = await this.messageModel.create({
       ticketId: ticket._id,
       sender: user._id,
@@ -232,7 +231,6 @@ export class SupportService {
     user: UserDocument,
   ): Promise<TicketDocument> {
     const subject = `[Ban Appeal] - From User: ${user.firstName || user.email}`;
-    // FIX: Use .create() to avoid constructor type conflicts.
     const newTicket = await this.ticketModel.create({
       category: TicketCategory.OTHER,
       subject: subject,
@@ -266,7 +264,6 @@ export class SupportService {
   async createPublicTicket(
     dto: CreatePublicTicketDto,
   ): Promise<TicketDocument> {
-    // FIX: Use .create() to avoid constructor type conflicts.
     const newTicket = await this.ticketModel.create({
       category: dto.category,
       subject: `[${dto.category}] - New Inquiry from ${dto.name}`,
@@ -312,7 +309,6 @@ export class SupportService {
         'You can only create one ticket per minute.',
       );
     const subject = `[${createTicketDto.category}] - ${createTicketDto.subject}`;
-    // FIX: Use .create() to avoid constructor type conflicts.
     const newTicket = await this.ticketModel.create({
       ...createTicketDto,
       subject,

@@ -69,7 +69,7 @@ export class FriendsService {
       );
     }
 
-    // FIX: Use .create() to avoid TS2554 build error
+    // FIX: Use .create() which is type-safe
     const newRequest = await this.friendRequestModel.create({
       requester: requesterId,
       recipient: recipientId,
@@ -173,7 +173,6 @@ export class FriendsService {
       );
     }
 
-    // FIX: Use string comparison for filtering
     userProfile.friends = userProfile.friends.filter(
       (id) => id.toString() !== friendId,
     );

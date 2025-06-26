@@ -41,7 +41,7 @@ export class SocialService {
       this.logger.log(
         `No social profile found for user ${userId}. Creating one.`,
       );
-      // FIX: Use .create() to avoid TS2554 build error
+      // FIX: Use .create() which is type-safe
       profile = await this.socialProfileModel.create({
         owner: new Types.ObjectId(userId),
       });
@@ -75,7 +75,6 @@ export class SocialService {
       );
     }
 
-    // FIX: Convert to string for comparison
     if (
       blockerProfile.blockedUsers
         .map((id) => id.toString())
@@ -91,7 +90,6 @@ export class SocialService {
 
     const userToBlockProfile = await this.findOrCreateProfile(userIdToBlock);
 
-    // FIX: Use string comparison for filtering
     blockerProfile.friends = blockerProfile.friends.filter(
       (id) => id.toString() !== userIdToBlock,
     );
@@ -130,7 +128,6 @@ export class SocialService {
 
     const initialLength = profile.blockedUsers.length;
 
-    // FIX: Use string comparison for filtering
     profile.blockedUsers = profile.blockedUsers.filter(
       (blockedId) => blockedId.toString() !== userIdToUnblock,
     );
