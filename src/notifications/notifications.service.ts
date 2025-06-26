@@ -38,7 +38,7 @@ export class NotificationsService {
     this.logger.log(
       `Creating notification for user ${payload.userId.toString()}`,
     );
-    // FIX: Use the two-step new/save pattern which is universally type-safe.
+    // FIX: Use the universally safe two-step instantiation pattern.
     const notification = new this.notificationModel(payload);
     return notification.save();
   }

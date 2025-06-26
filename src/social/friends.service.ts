@@ -69,11 +69,10 @@ export class FriendsService {
       );
     }
 
-    // FIX: Use the two-step new/save pattern which is universally type-safe.
-    const newRequest = new this.friendRequestModel({
-      requester: requesterId,
-      recipient: recipientId,
-    });
+    // FIX: Use the universally safe two-step instantiation pattern.
+    const newRequest = new this.friendRequestModel();
+    newRequest.requester = new Types.ObjectId(requesterId);
+    newRequest.recipient = new Types.ObjectId(recipientId);
     await newRequest.save();
 
     await this.notificationsService.createNotification({
