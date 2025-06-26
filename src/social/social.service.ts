@@ -41,9 +41,10 @@ export class SocialService {
       this.logger.log(
         `No social profile found for user ${userId}. Creating one.`,
       );
-      const newProfile = new this.socialProfileModel();
-      newProfile.owner = new Types.ObjectId(userId);
-      profile = await newProfile.save();
+      // FIX: Use the static .create() method with a plain object.
+      profile = await this.socialProfileModel.create({
+        owner: new Types.ObjectId(userId),
+      });
     }
     return profile;
   }

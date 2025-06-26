@@ -80,8 +80,7 @@ export class SupportService {
       );
     }
 
-    const newMessage = new this.messageModel();
-    Object.assign(newMessage, {
+    const newMessage = new this.messageModel({
       ticketId: ticket._id,
       sender: user._id,
       content: addMessageDto.content,
@@ -324,6 +323,7 @@ export class SupportService {
       );
     const subject = `[${createTicketDto.category}] - ${createTicketDto.subject}`;
 
+    // FIX: Use the universally safe new/assign/save pattern.
     const newTicket = new this.ticketModel();
     Object.assign(newTicket, {
       ...createTicketDto,

@@ -25,13 +25,12 @@ export class GroupsService {
     createGroupDto: CreateGroupDto,
   ): Promise<GroupDocument> {
     const ownerObjectId = new Types.ObjectId(ownerId);
-    const group = new this.groupModel();
-    Object.assign(group, {
+    // FIX: Use the static .create() method with a plain object.
+    return this.groupModel.create({
       ...createGroupDto,
       owner: ownerObjectId,
-      members: [ownerObjectId],
+      members: [ownerObjectId], // The owner is always the first member
     });
-    return group.save();
   }
 
   async getGroupById(groupId: string): Promise<GroupDocument> {

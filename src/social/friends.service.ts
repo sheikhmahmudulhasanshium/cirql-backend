@@ -69,10 +69,11 @@ export class FriendsService {
       );
     }
 
-    const newRequest = new this.friendRequestModel();
-    newRequest.requester = new Types.ObjectId(requesterId);
-    newRequest.recipient = new Types.ObjectId(recipientId);
-    await newRequest.save();
+    // FIX: Use the static .create() method with a plain object.
+    const newRequest = await this.friendRequestModel.create({
+      requester: new Types.ObjectId(requesterId),
+      recipient: new Types.ObjectId(recipientId),
+    });
 
     await this.notificationsService.createNotification({
       userId: new Types.ObjectId(recipientId),

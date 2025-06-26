@@ -13,9 +13,10 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    const newSettings = new this.settingModel();
-    newSettings.userId = new Types.ObjectId(userId);
-    return newSettings.save();
+    // FIX: Use the static .create() method with a plain object.
+    return this.settingModel.create({
+      userId: new Types.ObjectId(userId),
+    });
   }
 
   async findOrCreateByUserId(userId: string): Promise<SettingDocument> {
@@ -61,9 +62,10 @@ export class SettingsService {
 
     await this.settingModel.findByIdAndDelete(existingSettings._id);
 
-    const newDefaultSettings = new this.settingModel();
-    newDefaultSettings._id = existingSettings._id;
-    newDefaultSettings.userId = userObjectId;
-    return newDefaultSettings.save();
+    // FIX: Use the static .create() method with a plain object.
+    return this.settingModel.create({
+      _id: existingSettings._id,
+      userId: userObjectId,
+    });
   }
 }
