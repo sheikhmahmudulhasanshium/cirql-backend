@@ -13,7 +13,7 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    // FIX: Use .create() which is type-safe
+    // FIX: Use .create() which is type-safe and returns a promise
     return this.settingModel.create({
       userId: new Types.ObjectId(userId),
     });
@@ -62,12 +62,10 @@ export class SettingsService {
 
     await this.settingModel.findByIdAndDelete(existingSettings._id);
 
-    // FIX: Use .create() which is type-safe
-    const newDefaultSettings = await this.settingModel.create({
+    // FIX: Use .create() which is type-safe and returns a promise
+    return this.settingModel.create({
       _id: existingSettings._id,
       userId: userObjectId,
     });
-
-    return newDefaultSettings;
   }
 }

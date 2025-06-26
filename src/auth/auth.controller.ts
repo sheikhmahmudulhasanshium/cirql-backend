@@ -1,7 +1,6 @@
 import {
   Controller,
   Get,
-  Req,
   UseGuards,
   Redirect,
   HttpStatus,
@@ -10,6 +9,7 @@ import {
   Post,
   HttpCode,
   Body,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
@@ -18,8 +18,6 @@ import {
   ApiBearerAuth,
   ApiResponse,
 } from '@nestjs/swagger';
-// FIX: Import the correct `Request` type directly from the express library.
-import { Request } from 'express';
 import {
   AuthService,
   AuthTokenResponse,
@@ -107,8 +105,7 @@ export class AuthController {
   @Redirect()
   googleAuthRedirect(
     @CurrentUser() user: UserDocument,
-    // FIX: Use the native `Request` type from 'express' to ensure `req.query` is correctly typed.
-    @Req() req: Request,
+    @Query('state') state?: string,
   ) {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     if (!frontendUrl) {
@@ -116,7 +113,6 @@ export class AuthController {
     }
 
     let finalRedirectUrl = `${frontendUrl}/auth/google/callback`;
-    const state = req.query.state as string | undefined;
 
     if (state) {
       try {
