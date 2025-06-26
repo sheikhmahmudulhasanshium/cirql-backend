@@ -84,8 +84,9 @@ export class User {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
+// FIX: Use .toString() which is a safer alias for .toHexString() and universally typed.
 UserSchema.virtual('id').get(function (this: UserDocument) {
-  return this._id.toHexString();
+  return this._id.toString();
 });
 
 UserSchema.pre<UserDocument>('save', async function (next) {

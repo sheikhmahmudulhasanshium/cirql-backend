@@ -18,12 +18,13 @@ import {
   ApiBearerAuth,
   ApiResponse,
 } from '@nestjs/swagger';
-import { Request as ExpressRequest } from 'express';
+// FIX: Import the correct `Request` type directly from the express library.
+import { Request } from 'express';
 import {
   AuthService,
   AuthTokenResponse,
   SanitizedUser,
-  TwoFactorRequiredResponse, // Import the new type
+  TwoFactorRequiredResponse,
 } from './auth.service';
 import { ConfigService } from '@nestjs/config';
 import { UserDocument } from '../users/schemas/user.schema';
@@ -55,13 +56,11 @@ export class AuthController {
     description: 'Login successful or 2FA required.',
   })
   @ApiResponse({ status: 401, description: 'Invalid credentials.' })
-  // --- THIS IS THE FIX ---
   async login(
     @Body() loginDto: LoginDto,
   ): Promise<AuthTokenResponse | TwoFactorRequiredResponse> {
     return this.authService.login(loginDto);
   }
-  // --- END OF FIX ---
 
   @Post('2fa/verify-code')
   @HttpCode(HttpStatus.OK)
@@ -108,7 +107,8 @@ export class AuthController {
   @Redirect()
   googleAuthRedirect(
     @CurrentUser() user: UserDocument,
-    @Req() req: ExpressRequest,
+    // FIX: Use the native `Request` type from 'express' to ensure `req.query` is correctly typed.
+    @Req() req: Request,
   ) {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     if (!frontendUrl) {

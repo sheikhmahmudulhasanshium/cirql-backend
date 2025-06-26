@@ -38,8 +38,8 @@ export class NotificationsService {
     this.logger.log(
       `Creating notification for user ${payload.userId.toString()}`,
     );
-    const notification = new this.notificationModel(payload);
-    return notification.save();
+    // FIX: Use .create() to avoid constructor type conflicts.
+    return this.notificationModel.create(payload);
   }
 
   async createGlobalNotification(
@@ -61,7 +61,6 @@ export class NotificationsService {
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
 
-    // Handle email notifications separately based on preferences
     for (const user of await this.userModel
       .find({}, 'email _id')
       .lean()
@@ -75,7 +74,6 @@ export class NotificationsService {
           const fullLink = payload.linkUrl
             ? `${frontendUrl}${payload.linkUrl}`
             : frontendUrl;
-          // Reusing sendAccountStatusEmail for a generic announcement template
           await this.emailService.sendAccountStatusEmail(
             user.email,
             payload.title,

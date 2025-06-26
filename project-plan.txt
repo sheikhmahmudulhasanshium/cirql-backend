@@ -90,13 +90,13 @@ Backend's ALLOWED_FRONTEND_ORIGINS acts as a security whitelist for that final J
 This setup achieves your goal: authentication can work "no matter what the environment is" (local FE to local BE, local FE to prod BE, prod FE to prod BE) because the system is designed to handle these different origin combinations through configuration and the dynamic state parameter.
 cirql-backend/
 ├── .env                    # (Not provided, assumed)
-├── .eslintrc.js            # (Not provided, assumed)
+├── .eslintrc.mjs           # Updated config file you provided
 ├── .gitignore              # (Not provided, assumed)
 ├── .prettierrc             # (Not provided, assumed)
 ├── nest-cli.json           # (Not provided, assumed)
 ├── package.json            # (Not provided, assumed)
 ├── tsconfig.build.json     # (Not provided, assumed)
-├── tsconfig.json           # (Not provided, assumed)
+├── tsconfig.json           # Your tsconfig file
 ├── src/
 │   ├── main.ts
 │   ├── app.controller.ts
@@ -121,14 +121,18 @@ cirql-backend/
 │   │   ├── decorators/
 │   │   │   └── current-user.decorator.ts
 │   │   ├── dto/
+│   │   │   ├── disable-2fa.dto.ts
 │   │   │   ├── forgot-password.dto.ts
+│   │   │   ├── login-2fa.dto.ts
+│   │   │   ├── login.dto.ts
 │   │   │   ├── reset-password.dto.ts
 │   │   │   └── two-factor-code.dto.ts
 │   │   ├── schemas/
-│   │   │   └── password-reset-token.schema.ts
+│   │   │   ├── password-reset-token.schema.ts
+│   │   │   └── two-factor-token.schema.ts
 │   │   ├── strategies/
 │   │   │   ├── google.strategy.ts
-│   │   │   ├── jwt-2fa.stategy.ts
+│   │   │   ├── jwt-2fa.strategy.ts
 │   │   │   └── jwt.strategy.ts
 │   │   ├── auth.controller.ts
 │   │   ├── auth.module.ts
@@ -140,12 +144,24 @@ cirql-backend/
 │   │   ├── enums/
 │   │   │   └── role.enum.ts
 │   │   ├── guards/
+│   │   │   ├── banned-user.guard.ts
+│   │   │   ├── optional-auth.guard.ts
 │   │   │   └── roles.guard.ts
 │   │   └── pipes/
 │   │       └── parse-object-id.pipe.ts
 │   ├── email/
 │   │   ├── email.module.ts
 │   │   └── email.service.ts
+│   ├── notifications/
+│   │   ├── dto/
+│   │   │   ├── create-notification.dto.ts
+│   │   │   ├── mark-read.dto.ts
+│   │   │   └── update-notification.dto.ts
+│   │   ├── schemas/
+│   │   │   └── notification.schema.ts
+│   │   ├── notifications.controller.ts
+│   │   ├── notifications.module.ts
+│   │   └── notifications.service.ts
 │   ├── settings/
 │   │   ├── dto/
 │   │   │   ├── create-setting.dto.ts
@@ -178,6 +194,7 @@ cirql-backend/
 │   │   └── social.service.ts
 │   ├── support/
 │   │   ├── dto/
+│   │   │   ├── create-appeal.dto.ts
 │   │   │   ├── create-public-ticket.dto.ts
 │   │   │   ├── create-support.dto.ts
 │   │   │   └── update-support.dto.ts
@@ -189,6 +206,7 @@ cirql-backend/
 │   │   └── support.service.ts
 │   └── users/
 │       ├── dto/
+│       │   ├── ban-user.dto.ts
 │       │   ├── public-profile.dto.ts
 │       │   ├── update-user-roles.dto.ts
 │       │   └── update-user.dto.ts
@@ -399,56 +417,26 @@ My specific question/topic for today is: [Insert your specific question or topic
   "twoFASecret": "ENCRYPTED_SECRET_KEY", // Important: Encrypted!
   "backupCodes": ["ENCRYPTED_CODE1", "ENCRYPTED_CODE2"] // Important: Encrypted!
 }
-
-do
-new auth checks
-if have 2fa enabled
-if no continue
-if yes send email, match code, if match continue
-avoids vulnerabilities like ddos
-should not have vercel build error.
-if notifications email is activated user will get notifications for announcement, log-in code, social notifications,
-make minimum changes since the code is in production
-typesafe
-full updated code
-ask always
-don'ts 
-no typescript, ESLint, build, runtime, logic error
-no loophole user/ hacker can exploit
-not install new module
-not have redundancy
-not wanna change configuration
-not incomplete codes
-
-are you ok with the conditions ?if yes then I will paste my full backend
-Changelog: Comprehensive Backend Enhancement
-This update introduces significant new features for administrators, hardens security protocols, and greatly improves the user notification experience.
-1. Admin Features & Security
-Introduced Admin Analytics Dashboard
-A new, admin-only endpoint GET /users/analytics is now available.
-It provides key metrics including:
-Total user count and status breakdown (active/banned).
-Weekly User Growth: Compares new users from the last 7 days to the previous week, showing a growth percentage.
-User Engagement: Classifies users as "Recent," "Active," or "Inactive" based on login history.
-Enhanced User Privacy Controls
-The public user directory at GET /users/directory now respects the "Private Account" setting. Users who have enabled this in their settings will no longer appear in public listings.
-Secured Admin-Only Content
-The GET /announcements endpoint is now secured. Non-authenticated users or standard users can only view visible: true announcements.
-Administrators can now query visible=false to view hidden or draft announcements, a feature that is inaccessible to the public.
-2. User Notifications & Experience
-Automated & Granular Notifications
-Announcement Notifications: Creating a new, visible announcement now automatically generates a system notification for all users.
-Support Notifications: Users now receive a system notification when an administrator replies to their support ticket.
-Granular Unsubscribe: Users can now turn off non-essential "Announcement & Newsletter" emails from their settings page without affecting critical security alerts. The email footer has been updated with a direct link to these settings.
-Advanced Notification System
-The notification system now supports new types: ANNOUNCEMENT and SUPPORT_REPLY.
-The GET /notifications endpoint has been upgraded with powerful filtering capabilities. Users can now query by:
-Read Status: ?isRead=true or ?isRead=false
-Notification Type: ?type=announcement, ?type=support_reply, etc.
-Unified Welcome Experience
-All new users, whether signing up via email/password or Google OAuth, now receive a consistent and beautifully branded "Welcome to CiRQL" email and an in-app welcome notification.
-3. Authentication & Security Hardening
-Two-Factor Authentication (2FA) Security Overhaul
-Reduced OTP Lifespan: The expiration time for 2FA One-Time Passwords (OTPs) has been reduced from 10 minutes to a much safer 2 minutes.
-Brute-Force Protection: A strict attempt limit has been implemented. After 5 consecutive failed OTP entries, the user's account is locked from 2FA login for 24 hours, preventing further attempts.
-Critical Email Integrity: All security-related emails (OTP codes, password resets, ban/unban notices) are now guaranteed to be sent, bypassing any user-defined notification preferences to ensure account access and security awareness are never compromised.
+Changelog - v1.1.0 (2024-06-27)
+This is a major feature and security release that introduces a suite of powerful new tools for administrators, significantly hardens security protocols around user authentication, and implements a comprehensive, user-friendly notification system. Additionally, the core social module has been fully implemented, moving from placeholder logic to a production-ready state.
+✨ New Features & Admin Enhancements
+Admin Analytics Dashboard: A new, admin-only endpoint (GET /users/analytics) has been introduced, providing key metrics on user engagement and platform growth.
+Weekly User Growth Statistics: The analytics service now calculates and displays week-over-week new user growth, including a percentage change.
+Automated Announcement Notifications: Creating a visible announcement now automatically generates an in-app system notification for all users, driving engagement with new content.
+Support Ticket Notifications: Users now receive an in-app system notification when an administrator replies to their support ticket, improving communication response times.
+Admin View for Hidden Content: The GET /announcements endpoint now allows authenticated administrators to view hidden (visible: false) announcements, which are inaccessible to the public.
+🔒 Security & Privacy Enhancements
+2FA Brute-Force Protection: Implemented a strict attempt limit. After 5 consecutive failed OTP entries, the user's account is locked from 2FA login for 24 hours to prevent credential stuffing and brute-force attacks.
+Reduced OTP Lifespan: The expiration time for 2FA One-Time Passwords (OTPs) has been reduced from 10 minutes to a much safer 2 minutes, minimizing the window for potential interception.
+Enhanced User Privacy: The public user directory (GET /users/directory) now respects the "Private Account" setting, correctly hiding users who have enabled this preference from public listings.
+Guaranteed Critical Email Delivery: All critical security emails (OTP codes, password resets, ban/unban notices) are now guaranteed to be sent, bypassing any user-defined notification preferences to ensure account security is never compromised.
+Secure Optional Authentication: A new OptionalAuthGuard was implemented to allow endpoints to serve both public and authenticated users securely without code duplication, ensuring proper access control on mixed-use routes.
+🚀 Improvements & Refinements
+Full Social Module Implementation: Replaced all placeholder logic in the SocialModule with complete, production-ready code. This includes full database interactions for:
+Friends System: Sending, accepting, rejecting, and removing friends.
+Followers System: Following and unfollowing users.
+User Blocking: Full implementation of blocking and unblocking users, which also automatically removes them from all mutual social connections (friends, followers, etc.).
+Advanced Notification Filtering: The GET /notifications endpoint has been upgraded to support powerful filtering by read status (isRead=true/false) and by notification type (e.g., announcement, support_reply).
+Granular Notification Controls: Users can now unsubscribe from non-essential "Announcement & Newsletter" emails via a direct link in the email footer that takes them to their profile settings page.
+Unified Welcome Experience: All new users, whether signing up via email/password or Google OAuth, now receive a consistent and professionally branded "Welcome to CiRQL" email and an in-app welcome notification.
+Build & Type-Safety Fixes: Resolved all Vercel build errors (TS2554, TS2339) by replacing deprecated Mongoose constructor patterns (new Model()) with the type-safe Model.create() method and correcting type definitions in various services, ensuring a stable and reliable build process.

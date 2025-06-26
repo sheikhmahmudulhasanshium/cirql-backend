@@ -40,10 +40,12 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
 
   async validate(
     accessToken: string,
-    refreshToken: string, // Often unused but required by the strategy's signature
+    refreshToken: string,
     profile: GoogleProfile,
   ): Promise<UserDocument> {
-    this.logger.debug(`Validating Google profile for: ${profile.displayName}`);
+    // FIX: Access the raw _json object to bypass potential type mismatches in the Profile type.
+    // The _json object contains the guaranteed raw response from the Google API.
+    this.logger.debug(`Validating Google profile for: ${profile._json.name}`);
 
     const email = profile.emails?.[0]?.value;
     const googleId = profile.id;
@@ -54,9 +56,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       );
     }
 
-    const firstName = profile.name?.givenName;
-    const lastName = profile.name?.familyName;
-    const picture = profile.photos?.[0]?.value;
+    const firstName = profile._json.given_name;
+    const lastName = profile._json.family_name;
+    const picture = profile._json.picture;
 
     try {
       return await this.authService.validateOAuthLogin(

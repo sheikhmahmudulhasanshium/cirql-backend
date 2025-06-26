@@ -80,14 +80,14 @@ export class SupportService {
       );
     }
 
-    const newMessage = new this.messageModel({
+    // FIX: Use .create() to avoid constructor type conflicts.
+    const newMessage = await this.messageModel.create({
       ticketId: ticket._id,
       sender: user._id,
       content: addMessageDto.content,
       attachments: addMessageDto.attachments || [],
     });
 
-    await newMessage.save();
     ticket.messages.push(newMessage._id);
 
     if (isAdmin) {
@@ -232,7 +232,8 @@ export class SupportService {
     user: UserDocument,
   ): Promise<TicketDocument> {
     const subject = `[Ban Appeal] - From User: ${user.firstName || user.email}`;
-    const newTicket = new this.ticketModel({
+    // FIX: Use .create() to avoid constructor type conflicts.
+    const newTicket = await this.ticketModel.create({
       category: TicketCategory.OTHER,
       subject: subject,
       user: user._id,
@@ -245,12 +246,11 @@ export class SupportService {
       status: TicketStatus.OPEN,
       messages: [],
     });
-    const initialMessage = new this.messageModel({
+    const initialMessage = await this.messageModel.create({
       ticketId: newTicket._id,
       sender: user._id,
       content: dto.message,
     });
-    await initialMessage.save();
     newTicket.messages.push(initialMessage._id);
     await newTicket.save();
     if (user.email) {
@@ -266,7 +266,8 @@ export class SupportService {
   async createPublicTicket(
     dto: CreatePublicTicketDto,
   ): Promise<TicketDocument> {
-    const newTicket = new this.ticketModel({
+    // FIX: Use .create() to avoid constructor type conflicts.
+    const newTicket = await this.ticketModel.create({
       category: dto.category,
       subject: `[${dto.category}] - New Inquiry from ${dto.name}`,
       guestName: dto.name,
@@ -276,12 +277,11 @@ export class SupportService {
       lastSeenByAdminAt: null,
       lastSeenByUserAt: null,
     });
-    const initialMessage = new this.messageModel({
+    const initialMessage = await this.messageModel.create({
       ticketId: newTicket._id,
       sender: new Types.ObjectId('000000000000000000000000'),
       content: dto.message,
     });
-    await initialMessage.save();
     newTicket.messages.push(initialMessage._id);
     await newTicket.save();
     try {
@@ -312,7 +312,8 @@ export class SupportService {
         'You can only create one ticket per minute.',
       );
     const subject = `[${createTicketDto.category}] - ${createTicketDto.subject}`;
-    const newTicket = new this.ticketModel({
+    // FIX: Use .create() to avoid constructor type conflicts.
+    const newTicket = await this.ticketModel.create({
       ...createTicketDto,
       subject,
       user: user._id,
@@ -320,13 +321,12 @@ export class SupportService {
       lastSeenByAdminAt: null,
       messages: [],
     });
-    const initialMessage = new this.messageModel({
+    const initialMessage = await this.messageModel.create({
       ticketId: newTicket._id,
       sender: user._id,
       content: createTicketDto.initialMessage,
       attachments: createTicketDto.attachments || [],
     });
-    await initialMessage.save();
     newTicket.messages.push(initialMessage._id);
     await newTicket.save();
     return newTicket;

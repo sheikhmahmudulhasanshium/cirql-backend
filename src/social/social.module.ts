@@ -1,8 +1,8 @@
-// FILE: src/social/social.module.ts
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UsersModule } from '../users/users.module';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import {
   SocialProfile,
   SocialProfileSchema,
@@ -32,6 +32,7 @@ import { RecommendationsService } from './recommendations.service';
     ]),
     UsersModule,
     AuthModule,
+    forwardRef(() => NotificationsModule), // Use forwardRef to handle circular dependency
   ],
   controllers: [
     SocialController,
@@ -47,5 +48,7 @@ import { RecommendationsService } from './recommendations.service';
     GroupsService,
     RecommendationsService,
   ],
+  // Export services that other modules (like Notifications) might need.
+  exports: [SocialService, FriendsService, FollowersService, GroupsService],
 })
 export class SocialModule {}

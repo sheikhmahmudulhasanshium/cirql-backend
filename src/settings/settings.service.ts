@@ -13,10 +13,10 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    const defaultSettings = new this.settingModel({
+    // FIX: Use .create() to avoid constructor type conflicts.
+    return await this.settingModel.create({
       userId: new Types.ObjectId(userId),
     });
-    return await defaultSettings.save();
   }
 
   async findOrCreateByUserId(userId: string): Promise<SettingDocument> {
@@ -52,29 +52,22 @@ export class SettingsService {
   async reset(userId: string): Promise<SettingDocument> {
     const userObjectId = new Types.ObjectId(userId);
 
-    // First, find the existing settings document to ensure it exists.
     const existingSettings = await this.settingModel
       .findOne({ userId: userObjectId })
       .exec();
 
     if (!existingSettings) {
-      // If for some reason it doesn't exist, create a new default one.
       return this.createDefaultSettings(userId);
     }
 
-    // Preserve the original _id.
-    const originalId = existingSettings._id;
+    await this.settingModel.findByIdAndDelete(existingSettings._id);
 
-    // Remove the old document.
-    await this.settingModel.findByIdAndDelete(originalId);
-
-    // Create a new document with the original _id and userId, letting Mongoose handle defaults.
-    const newDefaultSettings = new this.settingModel({
-      _id: originalId,
+    // FIX: Use .create() to avoid constructor type conflicts.
+    const newDefaultSettings = await this.settingModel.create({
+      _id: existingSettings._id,
       userId: userObjectId,
     });
 
-    // Save the new default document.
-    return await newDefaultSettings.save();
+    return newDefaultSettings;
   }
 }
