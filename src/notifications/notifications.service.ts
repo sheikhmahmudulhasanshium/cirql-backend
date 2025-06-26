@@ -38,7 +38,7 @@ export class NotificationsService {
     this.logger.log(
       `Creating notification for user ${payload.userId.toString()}`,
     );
-    // FIX: Use the explicit new/assign/save pattern
+    // FIX: Use the explicit new/assign/save pattern which is universally type-safe.
     const notification = new this.notificationModel();
     Object.assign(notification, payload);
     return notification.save();
