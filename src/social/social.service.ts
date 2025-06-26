@@ -41,7 +41,6 @@ export class SocialService {
       this.logger.log(
         `No social profile found for user ${userId}. Creating one.`,
       );
-      // FIX: Use the explicit new/assign/save pattern which is universally type-safe.
       const newProfile = new this.socialProfileModel();
       newProfile.owner = new Types.ObjectId(userId);
       profile = await newProfile.save();

@@ -25,12 +25,11 @@ export class GroupsService {
     createGroupDto: CreateGroupDto,
   ): Promise<GroupDocument> {
     const ownerObjectId = new Types.ObjectId(ownerId);
-    // FIX: Use the explicit new/assign/save pattern which is universally type-safe.
     const group = new this.groupModel();
     Object.assign(group, {
       ...createGroupDto,
       owner: ownerObjectId,
-      members: [ownerObjectId], // The owner is always the first member
+      members: [ownerObjectId],
     });
     return group.save();
   }

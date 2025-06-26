@@ -69,7 +69,6 @@ export class FriendsService {
       );
     }
 
-    // FIX: Use the explicit new/assign/save pattern which is universally type-safe.
     const newRequest = new this.friendRequestModel();
     newRequest.requester = new Types.ObjectId(requesterId);
     newRequest.recipient = new Types.ObjectId(recipientId);

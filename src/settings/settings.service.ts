@@ -13,10 +13,8 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    // FIX: Use the explicit new/assign/save pattern which is universally type-safe.
     const newSettings = new this.settingModel();
     newSettings.userId = new Types.ObjectId(userId);
-    // Mongoose will apply other defaults from the schema upon saving.
     return newSettings.save();
   }
 
@@ -63,7 +61,6 @@ export class SettingsService {
 
     await this.settingModel.findByIdAndDelete(existingSettings._id);
 
-    // FIX: Use the explicit new/assign/save pattern which is universally type-safe.
     const newDefaultSettings = new this.settingModel();
     newDefaultSettings._id = existingSettings._id;
     newDefaultSettings.userId = userObjectId;
