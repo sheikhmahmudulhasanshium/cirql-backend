@@ -38,7 +38,7 @@ export class NotificationsService {
     this.logger.log(
       `Creating notification for user ${payload.userId.toString()}`,
     );
-    // FIX: Use .create() to avoid constructor type conflicts.
+    // FIX: Use .create() to avoid TS2554 build error
     return this.notificationModel.create(payload);
   }
 

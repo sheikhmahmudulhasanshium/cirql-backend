@@ -41,7 +41,7 @@ export class SocialService {
       this.logger.log(
         `No social profile found for user ${userId}. Creating one.`,
       );
-      // FIX: Use .create() to prevent TS2554 build error
+      // FIX: Use .create() to avoid TS2554 build error
       profile = await this.socialProfileModel.create({
         owner: new Types.ObjectId(userId),
       });
@@ -67,7 +67,6 @@ export class SocialService {
     ]);
 
     if (!blockerProfile) {
-      // This should not happen if the currentUserId comes from an authenticated user
       throw new NotFoundException('Your social profile could not be found.');
     }
     if (!userToBlock) {
@@ -76,41 +75,42 @@ export class SocialService {
       );
     }
 
-    const userIdToBlockObj = new Types.ObjectId(userIdToBlock);
-
-    if (blockerProfile.blockedUsers.includes(userIdToBlockObj)) {
+    // FIX: Convert to string for comparison
+    if (
+      blockerProfile.blockedUsers
+        .map((id) => id.toString())
+        .includes(userIdToBlock)
+    ) {
       this.logger.warn(
         `User ${currentUserId} already blocked ${userIdToBlock}.`,
       );
       return blockerProfile;
     }
 
-    // Add to blocked list
-    blockerProfile.blockedUsers.push(userIdToBlockObj);
+    blockerProfile.blockedUsers.push(new Types.ObjectId(userIdToBlock));
 
-    // Also remove from friends, followers, following on both sides
     const userToBlockProfile = await this.findOrCreateProfile(userIdToBlock);
 
+    // FIX: Use string comparison for filtering
     blockerProfile.friends = blockerProfile.friends.filter(
-      (id) => !id.equals(userIdToBlockObj),
+      (id) => id.toString() !== userIdToBlock,
     );
     blockerProfile.following = blockerProfile.following.filter(
-      (id) => !id.equals(userIdToBlockObj),
+      (id) => id.toString() !== userIdToBlock,
     );
     blockerProfile.followers = blockerProfile.followers.filter(
-      (id) => !id.equals(userIdToBlockObj),
+      (id) => id.toString() !== userIdToBlock,
     );
 
     if (userToBlockProfile) {
-      const currentUserIdObj = new Types.ObjectId(currentUserId);
       userToBlockProfile.friends = userToBlockProfile.friends.filter(
-        (id) => !id.equals(currentUserIdObj),
+        (id) => id.toString() !== currentUserId,
       );
       userToBlockProfile.following = userToBlockProfile.following.filter(
-        (id) => !id.equals(currentUserIdObj),
+        (id) => id.toString() !== currentUserId,
       );
       userToBlockProfile.followers = userToBlockProfile.followers.filter(
-        (id) => !id.equals(currentUserIdObj),
+        (id) => id.toString() !== currentUserId,
       );
       await userToBlockProfile.save();
     }
@@ -128,11 +128,11 @@ export class SocialService {
       throw new NotFoundException('Your social profile could not be found.');
     }
 
-    const userIdToUnblockObj = new Types.ObjectId(userIdToUnblock);
     const initialLength = profile.blockedUsers.length;
 
+    // FIX: Use string comparison for filtering
     profile.blockedUsers = profile.blockedUsers.filter(
-      (blockedId) => !blockedId.equals(userIdToUnblockObj),
+      (blockedId) => blockedId.toString() !== userIdToUnblock,
     );
 
     if (profile.blockedUsers.length === initialLength) {

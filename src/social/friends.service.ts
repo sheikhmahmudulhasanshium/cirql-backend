@@ -69,6 +69,7 @@ export class FriendsService {
       );
     }
 
+    // FIX: Use .create() to avoid TS2554 build error
     const newRequest = await this.friendRequestModel.create({
       requester: requesterId,
       recipient: recipientId,
@@ -172,14 +173,12 @@ export class FriendsService {
       );
     }
 
-    const friendIdObj = new Types.ObjectId(friendId);
-    const userIdObj = new Types.ObjectId(userId);
-
+    // FIX: Use string comparison for filtering
     userProfile.friends = userProfile.friends.filter(
-      (id) => !id.equals(friendIdObj),
+      (id) => id.toString() !== friendId,
     );
     friendProfile.friends = friendProfile.friends.filter(
-      (id) => !id.equals(userIdObj),
+      (id) => id.toString() !== userId,
     );
 
     await Promise.all([userProfile.save(), friendProfile.save()]);

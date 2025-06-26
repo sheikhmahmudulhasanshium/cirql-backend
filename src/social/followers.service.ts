@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SocialService } from './social.service';
-import { Types } from 'mongoose';
 
 @Injectable()
 export class FollowersService {
@@ -29,21 +28,22 @@ export class FollowersService {
       );
     }
 
-    const userToFollowObj = new Types.ObjectId(userIdToFollow);
-    const currentUserObj = new Types.ObjectId(currentUserId);
-
-    // Add userToFollow to the current user's 'following' list
+    // FIX: Use string comparison
     if (
-      !currentUserProfile.following.some((id) => id.equals(userToFollowObj))
+      !currentUserProfile.following
+        .map((id) => id.toString())
+        .includes(userIdToFollow)
     ) {
-      currentUserProfile.following.push(userToFollowObj);
+      currentUserProfile.following.push(userToFollowProfile.owner);
     }
 
-    // Add current user to the userToFollow's 'followers' list
+    // FIX: Use string comparison
     if (
-      !userToFollowProfile.followers.some((id) => id.equals(currentUserObj))
+      !userToFollowProfile.followers
+        .map((id) => id.toString())
+        .includes(currentUserId)
     ) {
-      userToFollowProfile.followers.push(currentUserObj);
+      userToFollowProfile.followers.push(currentUserProfile.owner);
     }
 
     await Promise.all([currentUserProfile.save(), userToFollowProfile.save()]);
@@ -63,17 +63,12 @@ export class FollowersService {
       );
     }
 
-    const userToUnfollowObj = new Types.ObjectId(userIdToUnfollow);
-    const currentUserObj = new Types.ObjectId(currentUserId);
-
-    // Remove from 'following' list
+    // FIX: Use string comparison for filtering
     currentUserProfile.following = currentUserProfile.following.filter(
-      (id) => !id.equals(userToUnfollowObj),
+      (id) => id.toString() !== userIdToUnfollow,
     );
-
-    // Remove from 'followers' list
     userToUnfollowProfile.followers = userToUnfollowProfile.followers.filter(
-      (id) => !id.equals(currentUserObj),
+      (id) => id.toString() !== currentUserId,
     );
 
     await Promise.all([

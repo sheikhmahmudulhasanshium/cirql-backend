@@ -13,8 +13,8 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    // FIX: Use .create() to avoid constructor type conflicts.
-    return await this.settingModel.create({
+    // FIX: Use .create() to avoid TS2554 build error
+    return this.settingModel.create({
       userId: new Types.ObjectId(userId),
     });
   }
@@ -62,7 +62,7 @@ export class SettingsService {
 
     await this.settingModel.findByIdAndDelete(existingSettings._id);
 
-    // FIX: Use .create() to avoid constructor type conflicts.
+    // FIX: Use .create() to avoid TS2554 build error
     const newDefaultSettings = await this.settingModel.create({
       _id: existingSettings._id,
       userId: userObjectId,
