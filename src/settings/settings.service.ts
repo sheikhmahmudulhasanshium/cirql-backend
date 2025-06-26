@@ -13,7 +13,7 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    // FIX: Use the two-step new/save pattern to avoid TS2554
+    // FIX: Use the two-step new/save pattern which is universally type-safe.
     const newSettings = new this.settingModel({
       userId: new Types.ObjectId(userId),
     });
@@ -63,7 +63,7 @@ export class SettingsService {
 
     await this.settingModel.findByIdAndDelete(existingSettings._id);
 
-    // FIX: Use the two-step new/save pattern to avoid TS2554
+    // FIX: Use the two-step new/save pattern which is universally type-safe.
     const newDefaultSettings = new this.settingModel({
       _id: existingSettings._id,
       userId: userObjectId,

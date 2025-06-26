@@ -41,7 +41,7 @@ export class SocialService {
       this.logger.log(
         `No social profile found for user ${userId}. Creating one.`,
       );
-      // FIX: Use the two-step new/save pattern to avoid TS2554
+      // FIX: Use the two-step new/save pattern which is universally type-safe.
       const newProfile = new this.socialProfileModel({
         owner: new Types.ObjectId(userId),
       });

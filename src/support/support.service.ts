@@ -321,6 +321,7 @@ export class SupportService {
       );
     const subject = `[${createTicketDto.category}] - ${createTicketDto.subject}`;
 
+    // FIX: Use the two-step new/save pattern which is universally type-safe.
     const newTicket = new this.ticketModel({
       ...createTicketDto,
       subject,

@@ -25,6 +25,7 @@ export class GroupsService {
     createGroupDto: CreateGroupDto,
   ): Promise<GroupDocument> {
     const ownerObjectId = new Types.ObjectId(ownerId);
+    // FIX: Use the two-step new/save pattern which is universally type-safe.
     const group = new this.groupModel({
       ...createGroupDto,
       owner: ownerObjectId,

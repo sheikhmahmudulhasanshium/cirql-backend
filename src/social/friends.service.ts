@@ -69,7 +69,7 @@ export class FriendsService {
       );
     }
 
-    // FIX: Use the two-step new/save pattern to avoid TS2554
+    // FIX: Use the two-step new/save pattern which is universally type-safe.
     const newRequest = new this.friendRequestModel({
       requester: requesterId,
       recipient: recipientId,
