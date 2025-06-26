@@ -145,7 +145,7 @@ export class EmailService {
         <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
           <p align="center" style="text-align: center;">
             <a href="https://cirql.vercel.app/" target="_blank">
-              <img src="https://raw.githubusercontent.com/sheikhmahmudulhasanshium/cirql-backend/main/public/logo-full.svg" width="200" alt="Cirql Logo" />
+              <img src="https://raw.githubusercontent.com/sheikhmahmudulhasanshium/cirql-frontend/refs/heads/main/public/logo.png" width="200" alt="Cirql Logo" />
             </a>
           </p>
           <h2 style="color: #1A1A2E; text-align: center;">Welcome, ${name}!</h2>
