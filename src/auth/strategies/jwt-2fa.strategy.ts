@@ -57,7 +57,6 @@ export class Jwt2faStrategy extends PassportStrategy(Strategy, 'jwt-2fa') {
 
     let user: UserDocument | null = null;
     try {
-      // Reminder: Ensure 'findById' is the correct method for your UsersService here.
       user = await this.usersService.findById(payload.sub);
 
       if (!user) {
@@ -87,11 +86,9 @@ export class Jwt2faStrategy extends PassportStrategy(Strategy, 'jwt-2fa') {
     }
 
     if (!user.is2FAEnabled) {
-      // --- THIS IS THE FIX ---
       this.logger.warn(
         `User ${user.email} (sub: ${user._id.toString()}) attempted 2FA, but 2FA is not enabled.`,
       );
-      // --- END OF FIX ---
       throw new UnauthorizedException('2FA is not enabled for this user.');
     }
 

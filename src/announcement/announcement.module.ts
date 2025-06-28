@@ -1,3 +1,4 @@
+// src/announcements/announcement.module.ts
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AnnouncementsService } from './announcement.service';

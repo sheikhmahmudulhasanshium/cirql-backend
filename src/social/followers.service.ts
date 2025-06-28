@@ -1,18 +1,30 @@
+// src/social/followers.service.ts
 import {
   Injectable,
   Logger,
   BadRequestException,
   NotFoundException,
+  forwardRef,
+  Inject,
 } from '@nestjs/common';
 import { SocialService } from './social.service';
+import { UserDocument } from '../users/schemas/user.schema';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/schemas/notification.schema';
+import { Types } from 'mongoose';
 
 @Injectable()
 export class FollowersService {
   private readonly logger = new Logger(FollowersService.name);
 
-  constructor(private readonly socialService: SocialService) {}
+  constructor(
+    private readonly socialService: SocialService,
+    @Inject(forwardRef(() => NotificationsService))
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
-  async follow(currentUserId: string, userIdToFollow: string) {
+  async follow(currentUser: UserDocument, userIdToFollow: string) {
+    const currentUserId = currentUser._id.toString();
     if (currentUserId === userIdToFollow) {
       throw new BadRequestException('You cannot follow yourself.');
     }
@@ -28,16 +40,14 @@ export class FollowersService {
       );
     }
 
-    // FIX: Use string comparison
-    if (
-      !currentUserProfile.following
-        .map((id) => id.toString())
-        .includes(userIdToFollow)
-    ) {
+    const wasAlreadyFollowing = currentUserProfile.following
+      .map((id) => id.toString())
+      .includes(userIdToFollow);
+
+    if (!wasAlreadyFollowing) {
       currentUserProfile.following.push(userToFollowProfile.owner);
     }
 
-    // FIX: Use string comparison
     if (
       !userToFollowProfile.followers
         .map((id) => id.toString())
@@ -47,6 +57,19 @@ export class FollowersService {
     }
 
     await Promise.all([currentUserProfile.save(), userToFollowProfile.save()]);
+
+    if (!wasAlreadyFollowing) {
+      const followerName =
+        `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() ||
+        'A new user';
+      await this.notificationsService.createNotification({
+        userId: new Types.ObjectId(userIdToFollow),
+        title: 'You have a new follower!',
+        message: `${followerName} is now following you.`,
+        type: NotificationType.SOCIAL_FOLLOW,
+        linkUrl: `/profile/${currentUserId}`,
+      });
+    }
 
     return { message: `You are now following this user.` };
   }
@@ -63,7 +86,6 @@ export class FollowersService {
       );
     }
 
-    // FIX: Use string comparison for filtering
     currentUserProfile.following = currentUserProfile.following.filter(
       (id) => id.toString() !== userIdToUnfollow,
     );

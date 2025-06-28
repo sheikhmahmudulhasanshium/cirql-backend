@@ -1,3 +1,4 @@
+// src/auth/auth.service.ts
 import {
   Injectable,
   InternalServerErrorException,
@@ -25,9 +26,13 @@ import {
   PasswordResetToken as PasswordResetTokenDocument,
 } from './schemas/password-reset-token.schema';
 import { LoginDto } from './dto/login.dto';
-import { Login2faDto } from './dto/login-2fa.dto';
 import { Disable2faDto } from './dto/disable-2fa.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+
+interface Jwt2faPartialPayload {
+  sub: string;
+  isTwoFactorAuthenticationComplete: false;
+}
 
 interface JwtAccessPayload {
   email: string | undefined;
@@ -55,7 +60,7 @@ export interface AuthTokenResponse {
 
 export interface TwoFactorRequiredResponse {
   isTwoFactorRequired: true;
-  userId: string;
+  partialAccessToken: string;
 }
 
 @Injectable()
@@ -101,19 +106,19 @@ export class AuthService {
         );
       }
       await this.generateAndSend2faCode(user);
-      return { isTwoFactorRequired: true, userId: user._id.toString() };
+      const { accessToken } = this.getPartialAccessToken(user);
+      return { isTwoFactorRequired: true, partialAccessToken: accessToken };
     }
 
-    await this.usersService.updateLastLogin(user._id);
+    await this.usersService.updateLastLogin(user);
     return this.getFullAccessToken(user);
   }
 
-  async loginWith2faCode(login2faDto: Login2faDto): Promise<AuthTokenResponse> {
-    const { userId, code } = login2faDto;
-    const user = await this.usersService.findByIdForAuth(userId);
-
+  async loginWith2faCode(
+    user: UserDocument,
+    code: string,
+  ): Promise<AuthTokenResponse> {
     if (
-      !user ||
       !user.is2FAEnabled ||
       !user.twoFactorAuthenticationCode ||
       !user.twoFactorAuthenticationCodeExpires
@@ -144,8 +149,8 @@ export class AuthService {
     if (!isCodeMatch) {
       user.twoFactorAttempts = (user.twoFactorAttempts || 0) + 1;
       if (user.twoFactorAttempts >= AuthService.MAX_2FA_ATTEMPTS) {
-        user.twoFactorLockoutUntil = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-        user.twoFactorAttempts = 0; // Reset attempts after lockout
+        user.twoFactorLockoutUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        user.twoFactorAttempts = 0;
         await user.save();
         this.logger.warn(`User ${user.id} locked out due to 2FA failures.`);
         throw new ForbiddenException(
@@ -156,14 +161,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid two-factor code.');
     }
 
-    // On success, reset attempts and clear codes
     user.twoFactorAttempts = 0;
     user.twoFactorLockoutUntil = undefined;
     user.twoFactorAuthenticationCode = undefined;
     user.twoFactorAuthenticationCodeExpires = undefined;
     await user.save();
 
-    await this.usersService.updateLastLogin(user._id);
+    await this.usersService.updateLastLogin(user);
     return this.getFullAccessToken(user);
   }
 
@@ -187,24 +191,24 @@ export class AuthService {
     if (!user.is2FAEnabled) {
       throw new BadRequestException('2FA is not enabled.');
     }
-    if (!user.password) {
-      throw new ForbiddenException(
-        'Cannot disable 2FA for accounts without a password (e.g., Google sign-in only).',
-      );
-    }
+
     const userWithPassword = await this.usersService.findByIdForAuth(user._id);
-    if (!userWithPassword?.password) {
+    if (!userWithPassword) {
       throw new InternalServerErrorException(
-        'Could not retrieve user password for verification.',
+        'Could not retrieve user for 2FA deactivation.',
       );
     }
-    const isPasswordMatch = await bcrypt.compare(
-      disable2faDto.password,
-      userWithPassword.password,
-    );
-    if (!isPasswordMatch) {
-      throw new UnauthorizedException('Invalid password.');
+
+    if (userWithPassword.password) {
+      const isPasswordMatch = await bcrypt.compare(
+        disable2faDto.password,
+        userWithPassword.password,
+      );
+      if (!isPasswordMatch) {
+        throw new UnauthorizedException('Invalid password.');
+      }
     }
+
     await this.usersService.set2FA(user._id.toString(), false);
     await this.auditService.createLog({
       actor: user,
@@ -214,19 +218,18 @@ export class AuthService {
     });
   }
 
-  private async generateAndSend2faCode(user: UserDocument): Promise<void> {
+  public async generateAndSend2faCode(user: UserDocument): Promise<void> {
     if (!user.email) return;
 
     const code = crypto.randomInt(100000, 999999).toString();
     const hashedCode = await bcrypt.hash(code, 10);
-    const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes validity
+    const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
 
     user.twoFactorAuthenticationCode = hashedCode;
     user.twoFactorAuthenticationCodeExpires = expiresAt;
-    user.twoFactorAttempts = 0; // Reset attempts every time a new code is generated
+    user.twoFactorAttempts = 0;
     await user.save();
 
-    // Critical security email, bypasses notification preferences
     await this.emailService.sendTwoFactorLoginCodeEmail(user.email, code);
   }
 
@@ -240,6 +243,15 @@ export class AuthService {
     const accessToken = this.jwtService.sign(payload);
 
     return { accessToken, user: this.sanitizeUser(user) };
+  }
+
+  getPartialAccessToken(user: UserDocument): { accessToken: string } {
+    const payload: Jwt2faPartialPayload = {
+      sub: user._id.toString(),
+      isTwoFactorAuthenticationComplete: false,
+    };
+    const accessToken = this.jwtService.sign(payload, { expiresIn: '5m' });
+    return { accessToken };
   }
 
   sanitizeUser(user: UserDocument): SanitizedUser {
@@ -258,9 +270,9 @@ export class AuthService {
 
   async handleForgotPasswordRequest(email: string): Promise<void> {
     const user = await this.usersService.findOneByEmailForAuth(email);
-    if (!user || !user.password) {
+    if (!user) {
       this.logger.warn(
-        `Password reset requested for non-existent or passwordless user: ${email}.`,
+        `Password reset requested for non-existent user: ${email}.`,
       );
       return;
     }
@@ -279,11 +291,9 @@ export class AuthService {
 
   async handleResetPassword(resetPasswordDto: ResetPasswordDto): Promise<void> {
     const { token: rawToken, password } = resetPasswordDto;
-
     const potentialTokens = await this.passwordResetTokenModel.find({
       expiresAt: { $gt: new Date() },
     });
-
     let validTokenDoc: PasswordResetTokenDocument | null = null;
     for (const doc of potentialTokens) {
       if (await bcrypt.compare(rawToken, doc.token)) {
@@ -291,11 +301,9 @@ export class AuthService {
         break;
       }
     }
-
     if (!validTokenDoc) {
       throw new BadRequestException('Invalid or expired password reset token.');
     }
-
     const user = await this.usersService.findById(validTokenDoc.userId);
     if (!user) {
       await this.passwordResetTokenModel.findByIdAndDelete(validTokenDoc._id);
@@ -303,7 +311,6 @@ export class AuthService {
         'User associated with this token no longer exists.',
       );
     }
-
     user.password = password;
     await user.save();
     await this.passwordResetTokenModel.findByIdAndDelete(validTokenDoc._id);
@@ -319,17 +326,13 @@ export class AuthService {
     this.logger.log(`Validating OAuth login for email: ${email}`);
     try {
       let user = await this.usersService.findOneByEmailForAuth(email);
-
       if (user) {
-        if (!user.googleId) {
-          user.googleId = googleId;
-        }
+        if (!user.googleId) user.googleId = googleId;
         user.firstName = firstName || user.firstName;
         user.lastName = lastName || user.lastName;
         user.picture = picture || user.picture;
         return user.save();
       }
-
       user = await this.usersService.findOneByGoogleId(googleId);
       if (user) {
         user.email = email;
@@ -338,7 +341,6 @@ export class AuthService {
         user.picture = picture || user.picture;
         return user.save();
       }
-
       this.logger.log(`Creating new user for email: ${email}`);
       return await this.usersService.create({
         googleId,

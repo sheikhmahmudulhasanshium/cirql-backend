@@ -1,3 +1,4 @@
+// src/users/users.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -35,9 +36,9 @@ export interface UserAnalyticsData {
     percentage: number;
   };
   engagement: {
-    recent: number; // Logged in past 3 days
-    active: number; // Logged in >= 2 times in past 30 days
-    inactive: number; // Not logged in past 30 days
+    recent: number;
+    active: number;
+    inactive: number;
   };
 }
 
@@ -121,8 +122,7 @@ export class UsersService {
 
   async create(userData: Partial<User>): Promise<UserDocument> {
     try {
-      const newUser = new this.userModel(userData);
-      await newUser.save();
+      const newUser = await this.userModel.create(userData);
       await this.runPostCreationTasks(newUser);
       return newUser;
     } catch (err: unknown) {
@@ -160,9 +160,33 @@ export class UsersService {
     }
   }
 
-  async updateLastLogin(userId: Types.ObjectId): Promise<void> {
+  async updateLastLogin(user: UserDocument): Promise<void> {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const lastLogin =
+      user.loginHistory.length > 0
+        ? user.loginHistory[user.loginHistory.length - 1]
+        : null;
+
+    if (lastLogin && lastLogin < thirtyDaysAgo) {
+      this.logger.log(`Sending 'Welcome Back' notification to ${user.id}`);
+      const welcomeName = user.firstName || 'there';
+      await this.notificationsService.createNotification({
+        userId: user._id,
+        title: 'Welcome Back! 👋',
+        message:
+          "It's great to see you again! Check out what's new on the platform.",
+        type: NotificationType.WELCOME_BACK,
+        linkUrl: '/home', // FIX: Corrected link from /dashboard
+      });
+      if (user.email) {
+        await this.emailService.sendWelcomeBackEmail(user.email, welcomeName);
+      }
+    }
+
     await this.userModel.updateOne(
-      { _id: userId },
+      { _id: user._id },
       { $push: { loginHistory: { $each: [new Date()], $slice: -10 } } },
     );
   }
@@ -435,6 +459,15 @@ export class UsersService {
     userToUnban.accountStatus = 'active';
     userToUnban.banReason = undefined;
     const unbannedUser = await userToUnban.save();
+
+    await this.notificationsService.createNotification({
+      userId: unbannedUser._id,
+      title: 'Your Account Has Been Reinstated',
+      message:
+        'Your account suspension has been lifted. Welcome back to Cirql!',
+      type: NotificationType.ACCOUNT_STATUS_UPDATE,
+      linkUrl: '/home',
+    });
 
     if (unbannedUser.email) {
       await this.emailService.sendAccountStatusEmail(

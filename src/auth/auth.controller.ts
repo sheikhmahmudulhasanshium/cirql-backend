@@ -1,3 +1,4 @@
+// src/auth/auth.controller.ts
 import {
   Controller,
   Get,
@@ -12,12 +13,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiBearerAuth,
-  ApiResponse,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import {
   AuthService,
   AuthTokenResponse,
@@ -49,11 +45,6 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Log in with email and password' })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful or 2FA required.',
-  })
-  @ApiResponse({ status: 401, description: 'Invalid credentials.' })
   async login(
     @Body() loginDto: LoginDto,
   ): Promise<AuthTokenResponse | TwoFactorRequiredResponse> {
@@ -61,14 +52,15 @@ export class AuthController {
   }
 
   @Post('2fa/verify-code')
+  @UseGuards(AuthGuard('jwt-2fa'))
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify the 2FA email code to complete login' })
-  @ApiResponse({ status: 200, description: 'Login successful.' })
-  @ApiResponse({ status: 401, description: 'Invalid or expired code.' })
   loginWith2faCode(
+    @CurrentUser() user: UserDocument,
     @Body() login2faDto: Login2faDto,
   ): Promise<AuthTokenResponse> {
-    return this.authService.loginWith2faCode(login2faDto);
+    return this.authService.loginWith2faCode(user, login2faDto.code);
   }
 
   @Post('2fa/enable')
@@ -85,7 +77,7 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Disable email-based 2FA by providing password' })
+  @ApiOperation({ summary: 'Disable email-based 2FA' })
   async disable2fa(
     @CurrentUser() user: UserDocument,
     @Body() disable2faDto: Disable2faDto,
@@ -101,9 +93,8 @@ export class AuthController {
 
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
-  @ApiOperation({ summary: 'Google OAuth callback URL' })
   @Redirect()
-  googleAuthRedirect(
+  async googleAuthRedirect(
     @CurrentUser() user: UserDocument,
     @Query('state') state?: string,
   ) {
@@ -113,7 +104,6 @@ export class AuthController {
     }
 
     let finalRedirectUrl = `${frontendUrl}/auth/google/callback`;
-
     if (state) {
       try {
         const decodedState = JSON.parse(
@@ -122,16 +112,24 @@ export class AuthController {
         if (decodedState.finalRedirectUri) {
           finalRedirectUrl = decodedState.finalRedirectUri;
         }
-      } catch {
-        this.logger.warn('Could not parse OAuth state parameter.');
+      } catch (error) {
+        this.logger.warn('Could not parse OAuth state parameter.', error);
       }
     }
 
     if (!user) {
-      this.logger.error('User object not found on request after Google OAuth.');
       const errorUrl = new URL(`${frontendUrl}/sign-in`);
       errorUrl.searchParams.set('error', 'authenticationFailed');
       return { url: errorUrl.toString() };
+    }
+
+    if (user.is2FAEnabled) {
+      await this.authService.generateAndSend2faCode(user);
+      const { accessToken: partialToken } =
+        this.authService.getPartialAccessToken(user);
+      const redirectUrl = new URL(`${frontendUrl}/log-in/2fa`);
+      redirectUrl.searchParams.set('token', partialToken);
+      return { url: redirectUrl.toString() };
     }
 
     const authResult = this.authService.getFullAccessToken(user);
@@ -155,7 +153,7 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Reset a user's password using a token" })
+  @ApiOperation({ summary: "Reset or set a user's password using a token" })
   async resetPassword(
     @Body() resetPasswordDto: ResetPasswordDto,
   ): Promise<{ message: string }> {

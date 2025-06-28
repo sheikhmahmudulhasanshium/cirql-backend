@@ -1,3 +1,4 @@
+// src/settings/settings.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -13,7 +14,6 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    // FIX: Use the static .create() method with a plain object.
     return this.settingModel.create({
       userId: new Types.ObjectId(userId),
     });
@@ -49,6 +49,27 @@ export class SettingsService {
     return updatedSettings;
   }
 
+  // FIX: New dedicated service method for theme updates
+  async updateTheme(
+    userId: string,
+    theme: 'light' | 'dark' | 'system',
+  ): Promise<SettingDocument> {
+    const updatedSettings = await this.settingModel
+      .findOneAndUpdate(
+        { userId: new Types.ObjectId(userId) },
+        { $set: { 'uiCustomizationPreferences.theme': theme } },
+        { new: true, upsert: true, setDefaultsOnInsert: true },
+      )
+      .exec();
+
+    if (!updatedSettings) {
+      throw new NotFoundException(
+        `Could not find or create settings for user ID ${userId}`,
+      );
+    }
+    return updatedSettings;
+  }
+
   async reset(userId: string): Promise<SettingDocument> {
     const userObjectId = new Types.ObjectId(userId);
 
@@ -62,7 +83,6 @@ export class SettingsService {
 
     await this.settingModel.findByIdAndDelete(existingSettings._id);
 
-    // FIX: Use the static .create() method with a plain object.
     return this.settingModel.create({
       _id: existingSettings._id,
       userId: userObjectId,

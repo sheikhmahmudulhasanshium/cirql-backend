@@ -1,3 +1,4 @@
+// src/support/support.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -18,7 +19,7 @@ import {
 } from './schemas/message.schema';
 import { CreateSupportDto } from './dto/create-support.dto';
 import { UpdateSupportDto } from './dto/update-support.dto';
-import { UserDocument } from '../users/schemas/user.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { EmailService } from '../email/email.service';
 import { Role } from '../common/enums/role.enum';
 import { CreatePublicTicketDto } from './dto/create-public-ticket.dto';
@@ -49,9 +50,40 @@ export class SupportService {
     @InjectModel(Ticket.name) private ticketModel: Model<TicketDocument>,
     @InjectModel(Message.name)
     private messageModel: Model<ActualMessageDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly emailService: EmailService,
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  private async notifyAdminsOfNewTicket(
+    ticket: TicketDocument,
+    initialMessageContent: string,
+    submittedBy: string,
+  ): Promise<void> {
+    const adminUsers = await this.userModel
+      .find({ roles: { $in: [Role.Admin, Role.Owner] } })
+      .select('_id')
+      .lean()
+      .exec();
+
+    const notificationPromises = adminUsers.map((admin) =>
+      this.notificationsService.createNotification({
+        userId: admin._id,
+        title: `New Ticket: ${ticket.subject}`,
+        message: `A new support ticket has been submitted by ${submittedBy}.`,
+        type: NotificationType.TICKET_ADMIN_ALERT,
+        linkUrl: `/admin/support/${ticket._id.toString()}`,
+      }),
+    );
+    await Promise.all(notificationPromises);
+
+    await this.emailService.sendAdminTicketNotificationEmail({
+      ticketId: ticket._id.toString(),
+      ticketSubject: ticket.subject,
+      submittedBy: submittedBy,
+      preview: initialMessageContent.substring(0, 150) + '...',
+    });
+  }
 
   async addMessage(
     ticketId: string,
@@ -69,8 +101,11 @@ export class SupportService {
       );
     }
 
+    // FIX: Use a type-safe check. Since it's populated, we can safely access _id.
+    const ticketOwnerId = ticket.user?._id;
     const isOwner =
-      ticket.user && ticket.user._id.toString() === user._id.toString();
+      ticket.user && ticketOwnerId && user._id.equals(ticketOwnerId);
+
     const isAdmin =
       user.roles.includes(Role.Admin) || user.roles.includes(Role.Owner);
 
@@ -80,13 +115,12 @@ export class SupportService {
       );
     }
 
-    const newMessage = new this.messageModel({
+    const newMessage = await this.messageModel.create({
       ticketId: ticket._id,
       sender: user._id,
       content: addMessageDto.content,
       attachments: addMessageDto.attachments || [],
     });
-    await newMessage.save();
 
     ticket.messages.push(newMessage._id);
 
@@ -99,7 +133,7 @@ export class SupportService {
     }
     await ticket.save();
 
-    if (isAdmin && ticket.user?._id) {
+    if (isAdmin && ticket.user && ticket.user._id) {
       await this.notificationsService.createNotification({
         userId: ticket.user._id,
         title: `Reply to your ticket: ${ticket.subject}`,
@@ -119,14 +153,12 @@ export class SupportService {
         replierName: `${user.firstName} ${user.lastName}`,
       });
     } else if (isOwner && ticket.user) {
-      await this.emailService.sendTicketReplyEmail({
-        to: this.emailService.getAdminEmail(),
-        ticketId: ticket._id.toString(),
-        ticketSubject: `[New User Reply] ${ticket.subject}`,
-        replyContent: addMessageDto.content,
-        replierName:
-          `${ticket.user.firstName || 'User'} ${ticket.user.lastName || ''}`.trim(),
-      });
+      const populatedUser = ticket.user;
+      await this.notifyAdminsOfNewTicket(
+        ticket,
+        addMessageDto.content,
+        `${populatedUser.firstName} ${populatedUser.lastName}`,
+      );
     }
 
     return this.getTicketById(ticketId, user);
@@ -142,8 +174,7 @@ export class SupportService {
 
     if (!ticket) throw new NotFoundException('Ticket not found.');
 
-    if (ticket.status === TicketStatus.CLOSED)
-      return ticket as unknown as TicketDocument;
+    if (ticket.status === TicketStatus.CLOSED) return ticket;
 
     ticket.status = TicketStatus.CLOSED;
     await ticket.save();
@@ -161,7 +192,7 @@ export class SupportService {
         replierName: `${adminUser.firstName} ${adminUser.lastName}`,
       });
     }
-    return ticket as unknown as TicketDocument;
+    return ticket;
   }
 
   async getTicketById(
@@ -187,14 +218,17 @@ export class SupportService {
       userPerformingAction.roles.includes(Role.Admin) ||
       userPerformingAction.roles.includes(Role.Owner);
 
+    // FIX: Use a type-safe check. Since it's populated, we can safely access _id.
+    const ticketOwnerId = ticket.user?._id;
     const isOwner =
       ticket.user &&
-      ticket.user._id.toString() === userPerformingAction._id.toString();
+      ticketOwnerId &&
+      userPerformingAction._id.equals(ticketOwnerId);
 
     if (!isAdmin && !isOwner) {
       throw new ForbiddenException('You cannot view this ticket.');
     }
-    return ticket as unknown as TicketDocument;
+    return ticket;
   }
 
   async markTicketAsSeen(ticketId: string, user: UserDocument): Promise<void> {
@@ -205,8 +239,15 @@ export class SupportService {
     const isAdmin =
       user.roles.includes(Role.Admin) || user.roles.includes(Role.Owner);
 
-    const isOwner =
-      ticketFromDb.user && ticketFromDb.user.toString() === user._id.toString();
+    // FIX: This robust check handles both ObjectId and populated UserDocument cases.
+    let isOwner = false;
+    if (ticketFromDb.user) {
+      const userIdToCompare =
+        ticketFromDb.user instanceof Types.ObjectId
+          ? ticketFromDb.user
+          : ticketFromDb.user._id;
+      isOwner = user._id.equals(userIdToCompare);
+    }
 
     if (!isAdmin && !isOwner) {
       throw new ForbiddenException(
@@ -232,8 +273,7 @@ export class SupportService {
     user: UserDocument,
   ): Promise<TicketDocument> {
     const subject = `[Ban Appeal] - From User: ${user.firstName || user.email}`;
-    const newTicket = new this.ticketModel();
-    Object.assign(newTicket, {
+    const newTicket = await this.ticketModel.create({
       category: TicketCategory.OTHER,
       subject: subject,
       user: user._id,
@@ -246,33 +286,29 @@ export class SupportService {
       status: TicketStatus.OPEN,
       messages: [],
     });
-    await newTicket.save();
 
-    const initialMessage = new this.messageModel({
+    const initialMessage = await this.messageModel.create({
       ticketId: newTicket._id,
       sender: user._id,
       content: dto.message,
     });
-    await initialMessage.save();
 
     newTicket.messages.push(initialMessage._id);
     await newTicket.save();
 
-    if (user.email) {
-      await this.emailService.sendContactFormEmail({
-        name: `${user.firstName || 'Banned User'} (ID: ${user.id})`,
-        fromEmail: user.email,
-        message: `A new ban appeal has been submitted.\n\n---\n\n${dto.message}`,
-      });
-    }
+    await this.notifyAdminsOfNewTicket(
+      newTicket,
+      dto.message,
+      `${user.firstName || 'Banned User'} (ID: ${user.id})`,
+    );
+
     return newTicket;
   }
 
   async createPublicTicket(
     dto: CreatePublicTicketDto,
   ): Promise<TicketDocument> {
-    const newTicket = new this.ticketModel();
-    Object.assign(newTicket, {
+    const newTicket = await this.ticketModel.create({
       category: dto.category,
       subject: `[${dto.category}] - New Inquiry from ${dto.name}`,
       guestName: dto.name,
@@ -282,30 +318,22 @@ export class SupportService {
       lastSeenByAdminAt: null,
       lastSeenByUserAt: null,
     });
-    await newTicket.save();
 
-    const initialMessage = new this.messageModel({
+    const initialMessage = await this.messageModel.create({
       ticketId: newTicket._id,
       sender: new Types.ObjectId('000000000000000000000000'),
       content: dto.message,
     });
-    await initialMessage.save();
 
     newTicket.messages.push(initialMessage._id);
     await newTicket.save();
 
-    try {
-      await this.emailService.sendContactFormEmail({
-        name: dto.name,
-        fromEmail: dto.email,
-        message: `A new support ticket has been created.\n\nCategory: ${dto.category}\n\nMessage:\n${dto.message}`,
-      });
-    } catch (emailError) {
-      this.logger.error(
-        `Failed to send email for public ticket, but ticket was saved. Email: ${dto.email}`,
-        emailError,
-      );
-    }
+    await this.notifyAdminsOfNewTicket(
+      newTicket,
+      dto.message,
+      `${dto.name} (Guest)`,
+    );
+
     return newTicket;
   }
 
@@ -323,9 +351,7 @@ export class SupportService {
       );
     const subject = `[${createTicketDto.category}] - ${createTicketDto.subject}`;
 
-    // FIX: Use the universally safe new/assign/save pattern.
-    const newTicket = new this.ticketModel();
-    Object.assign(newTicket, {
+    const newTicket = await this.ticketModel.create({
       ...createTicketDto,
       subject,
       user: user._id,
@@ -333,18 +359,23 @@ export class SupportService {
       lastSeenByAdminAt: null,
       messages: [],
     });
-    await newTicket.save();
 
-    const initialMessage = new this.messageModel({
+    const initialMessage = await this.messageModel.create({
       ticketId: newTicket._id,
       sender: user._id,
       content: createTicketDto.initialMessage,
       attachments: createTicketDto.attachments || [],
     });
-    await initialMessage.save();
 
     newTicket.messages.push(initialMessage._id);
     await newTicket.save();
+
+    await this.notifyAdminsOfNewTicket(
+      newTicket,
+      createTicketDto.initialMessage,
+      `${user.firstName} ${user.lastName}`,
+    );
+
     return newTicket;
   }
 
@@ -358,7 +389,7 @@ export class SupportService {
 
     return tickets.map((ticket) => ({
       _id: ticket._id,
-      user: ticket.user,
+      user: ticket.user as Types.ObjectId | undefined,
       guestName: ticket.guestName,
       guestEmail: ticket.guestEmail,
       category: ticket.category,
@@ -387,7 +418,7 @@ export class SupportService {
 
     return tickets.map((ticket) => ({
       _id: ticket._id,
-      user: ticket.user,
+      user: ticket.user as Partial<UserDocument> | undefined,
       guestName: ticket.guestName,
       guestEmail: ticket.guestEmail,
       category: ticket.category,

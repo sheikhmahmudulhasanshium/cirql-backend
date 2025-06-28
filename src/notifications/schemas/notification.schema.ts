@@ -1,3 +1,4 @@
+// src/notifications/schemas/notification.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
@@ -5,9 +6,15 @@ export type NotificationDocument = Notification & Document;
 
 export enum NotificationType {
   WELCOME = 'welcome',
+  WELCOME_BACK = 'welcome_back',
   ANNOUNCEMENT = 'announcement',
   SUPPORT_REPLY = 'support_reply',
-  SOCIAL = 'social', // Placeholder for future use
+  TICKET_ADMIN_ALERT = 'ticket_admin_alert',
+  ACCOUNT_STATUS_UPDATE = 'account_status_update',
+  SOCIAL_FRIEND_REQUEST = 'social_friend_request',
+  SOCIAL_FRIEND_ACCEPT = 'social_friend_accept',
+  SOCIAL_FOLLOW = 'social_follow',
+  SOCIAL = 'social',
 }
 
 @Schema({ timestamps: true })

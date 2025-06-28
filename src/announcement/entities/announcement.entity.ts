@@ -1,7 +1,9 @@
+// src/announcement/entities/announcement.entity.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 
-export type AnnouncementDocument = Announcement & Document;
+export type AnnouncementDocument = Announcement &
+  Document & { _id: Types.ObjectId };
 
 export enum AnnouncementType {
   UPCOMING = 'Upcoming',
@@ -10,8 +12,14 @@ export enum AnnouncementType {
   GENERAL = 'General',
 }
 
-@Schema({ timestamps: true })
+@Schema({
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
+})
 export class Announcement {
+  id: string; // Virtual property
+
   @Prop({ required: true })
   title: string;
 
@@ -35,3 +43,7 @@ export class Announcement {
 }
 
 export const AnnouncementSchema = SchemaFactory.createForClass(Announcement);
+
+AnnouncementSchema.virtual('id').get(function (this: AnnouncementDocument) {
+  return this._id.toString();
+});

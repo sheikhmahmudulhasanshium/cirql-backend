@@ -1,3 +1,4 @@
+// src/auth/auth.module.ts
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
@@ -12,6 +13,7 @@ import { AuditModule } from '../audit/audit.module';
 
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { Jwt2faStrategy } from './strategies/jwt-2fa.strategy';
 
 import {
   PasswordResetToken,
@@ -45,7 +47,7 @@ import {
     ]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, GoogleStrategy],
+  providers: [AuthService, JwtStrategy, GoogleStrategy, Jwt2faStrategy],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

@@ -1,3 +1,4 @@
+// src/announcements/announcement.controller.ts
 import {
   Controller,
   Get,
@@ -15,6 +16,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseBoolPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AnnouncementsService } from './announcement.service';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
@@ -43,8 +45,8 @@ export class AnnouncementsController {
     @Body() createAnnouncementDto: CreateAnnouncementDto,
     @CurrentUser() user: UserDocument,
   ) {
-    const userId = user._id.toString();
-    return this.announcementsService.create(createAnnouncementDto, userId);
+    if (!user) throw new ForbiddenException('Authentication required.');
+    return this.announcementsService.create(createAnnouncementDto, user);
   }
 
   @Get()
@@ -88,8 +90,8 @@ export class AnnouncementsController {
     @Body() updateAnnouncementDto: UpdateAnnouncementDto,
     @CurrentUser() user: UserDocument,
   ) {
-    const userId = user._id.toString();
-    return this.announcementsService.update(id, updateAnnouncementDto, userId);
+    if (!user) throw new ForbiddenException('Authentication required.');
+    return this.announcementsService.update(id, updateAnnouncementDto, user);
   }
 
   @Delete(':id')
@@ -101,7 +103,7 @@ export class AnnouncementsController {
     @Param('id', ParseObjectIdPipe) id: string,
     @CurrentUser() user: UserDocument,
   ) {
-    const userId = user._id.toString();
-    await this.announcementsService.remove(id, userId);
+    if (!user) throw new ForbiddenException('Authentication required.');
+    await this.announcementsService.remove(id, user);
   }
 }

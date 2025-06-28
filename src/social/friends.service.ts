@@ -1,3 +1,4 @@
+// src/social/friends.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -17,6 +18,7 @@ import {
 import { SocialService } from './social.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/schemas/notification.schema';
+import { UserDocument } from 'src/users/schemas/user.schema';
 
 @Injectable()
 export class FriendsService {
@@ -29,9 +31,10 @@ export class FriendsService {
   ) {}
 
   async sendRequest(
-    requesterId: string,
+    requester: UserDocument,
     recipientId: string,
   ): Promise<FriendRequestDocument> {
+    const requesterId = requester._id.toString();
     if (requesterId === recipientId) {
       throw new BadRequestException(
         'You cannot send a friend request to yourself.',
@@ -69,17 +72,20 @@ export class FriendsService {
       );
     }
 
-    // FIX: Use the static .create() method with a plain object.
     const newRequest = await this.friendRequestModel.create({
       requester: new Types.ObjectId(requesterId),
       recipient: new Types.ObjectId(recipientId),
     });
 
+    const requesterName =
+      `${requester.firstName || ''} ${requester.lastName || ''}`.trim() ||
+      'A user';
+
     await this.notificationsService.createNotification({
       userId: new Types.ObjectId(recipientId),
       title: 'New Friend Request',
-      message: 'You have received a new friend request.',
-      type: NotificationType.SOCIAL,
+      message: `${requesterName} sent you a friend request.`,
+      type: NotificationType.SOCIAL_FRIEND_REQUEST,
       linkUrl: '/social/friends/requests',
     });
 
@@ -88,9 +94,10 @@ export class FriendsService {
 
   async acceptRequest(
     requestId: string,
-    currentUserId: string,
+    currentUser: UserDocument,
   ): Promise<{ message: string }> {
     const request = await this.friendRequestModel.findById(requestId);
+    const currentUserId = currentUser._id.toString();
 
     if (!request || request.status !== FriendRequestStatus.PENDING) {
       throw new NotFoundException(
@@ -126,11 +133,14 @@ export class FriendsService {
       this.friendRequestModel.deleteOne({ _id: requestId }),
     ]);
 
+    const recipientName =
+      `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() ||
+      'A user';
     await this.notificationsService.createNotification({
       userId: request.requester,
       title: 'Friend Request Accepted',
-      message: `Your friend request has been accepted. You are now friends!`,
-      type: NotificationType.SOCIAL,
+      message: `${recipientName} accepted your friend request.`,
+      type: NotificationType.SOCIAL_FRIEND_ACCEPT,
       linkUrl: `/profile/${request.recipient.toString()}`,
     });
 

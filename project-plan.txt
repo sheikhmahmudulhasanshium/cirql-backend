@@ -238,205 +238,31 @@ cirql-backend/
   "linkUrl": "https://cirql-backend.vercel.app/api/"
 }
 
-//prompt
-Let's continue our discussion about the ideal user management system we were designing. To recap, we discussed implementing a granular RBAC system (user, admin, owner, etc.) with specific permissions, enforcing unique user identification (internal ID, email), adding MFA, and improving security measures (rate limiting, audit logs, etc.). We also defined the data structure and an example API response for a `getAll` users endpoint with filtering, pagination, and error handling.
 
-My specific question/topic for today is: [Insert your specific question or topic here]. For example: "How should we handle password resets?" or "Can we discuss the best approach for implementing audit logging?" or "What are some options for the frontend to handle the paginated `getAll` API response?"
-
-//current data getAll
-[
-  {
-    "_id": "68373bb20386e48d16144d6d",
-    "email": "officials.shium@gmail.com",
-    "firstName": "Sheikh Mahmudul Hasan",
-    "lastName": "Shium",
-    "googleId": "104840201035956112465",
-    "picture": "https://lh3.googleusercontent.com/a/ACg8ocJRqt6KW8uwv_1QeBDBSLkDMBZNAl_-7EEtP3i_L65VIeetaq8=s96-c",
-    "createdAt": "2025-05-28T16:37:06.828Z",
-    "updatedAt": "2025-06-15T06:02:55.971Z",
-    "__v": 0,
-    "accountStatus": "active",
-    "role": "admin",
-    "id": "68373bb20386e48d16144d6d"
-  },
-  {
-    "_id": "68377756edbb4d47472fa4a1",
-    "email": "sheikh.mahmudul.hasan.shium.aiub@gmail.com",
-    "firstName": "Sheikh Mahmudul Hasan",
-    "lastName": "Shium",
-    "googleId": "104804616637310003292",
-    "picture": "https://lh3.googleusercontent.com/a/ACg8ocLImafbhVF7QnTNyr4bSE4BZArg8t7Fg-_tHcMViV1fffINAMg=s96-c",
-    "createdAt": "2025-05-28T20:51:34.556Z",
-    "updatedAt": "2025-06-15T06:02:58.013Z",
-    "__v": 0,
-    "accountStatus": "active",
-    "role": "admin",
-    "id": "68377756edbb4d47472fa4a1"
-  },
-  {
-    "_id": "68470e79a5ec9905a77ebb09",
-    "email": "shanjidasaima2020@gmail.com",
-    "firstName": "Shanjida",
-    "lastName": "Saima",
-    "googleId": "109065821932479661428",
-    "picture": "https://lh3.googleusercontent.com/a/ACg8ocJEIQ6gi3zz8jTdcp_DUi9A1tuRZ2m_xcRvYyHNdWl7G_73mQ=s96-c",
-    "createdAt": "2025-06-09T16:40:25.053Z",
-    "updatedAt": "2025-06-09T16:40:25.053Z",
-    "__v": 0,
-    "accountStatus": "active",
-    "role": "user",
-    "id": "68470e79a5ec9905a77ebb09"
-  },
-  {
-    "_id": "684d765e12e2d6b55490dd63",
-    "email": "sheikhmahmudulhasanshium2000@gmail.com",
-    "firstName": "Sheikh Mahmudul Hasan Shium",
-    "lastName": "Shium",
-    "googleId": "114596070347235844275",
-    "picture": "https://lh3.googleusercontent.com/a/ACg8ocIccSN1Ym79aDziPMDzab315am2CTrxH1A3S5XsDOfmy7Rgt3w=s96-c",
-    "createdAt": "2025-06-14T13:17:18.168Z",
-    "updatedAt": "2025-06-14T13:17:18.168Z",
-    "__v": 0,
-    "accountStatus": "active",
-    "role": "user",
-    "id": "684d765e12e2d6b55490dd63"
-  }
-]
-//ideal userdata getAll
-{
-  "success": true, // Indicate success/failure explicitly
-  "data": [
-    {
-      "_id": "68373bb20386e48d16144d6d",
-      "email": "officials.shium@gmail.com",
-      "firstName": "Sheikh Mahmudul Hasan",
-      "lastName": "Shium",
-      "accountStatus": "active",
-      "roles": ["owner", "admin"],
-      "lastLogin": "2025-06-16T10:00:00.000Z" // Example,
-    },
-    {
-      "_id": "68377756edbb4d47472fa4a1",
-      "email": "sheikh.mahmudul.hasan.shium.aiub@gmail.com",
-      "firstName": "Sheikh Mahmudul Hasan",
-      "lastName": "Shium",
-      "accountStatus": "active",
-      "roles": ["admin"],
-      "lastLogin": "2025-06-15T18:30:00.000Z"
-    },
-    {
-      "_id": "68470e79a5ec9905a77ebb09",
-      "email": "shanjidasaima2020@gmail.com",
-      "firstName": "Shanjida",
-      "lastName": "Saima",
-      "accountStatus": "active",
-      "roles": ["user"],
-      "lastLogin": "2025-06-16T08:00:00.000Z"
-    },
-    {
-      "_id": "684d765e12e2d6b55490dd63",
-      "email": "sheikhmahmudulhasanshium2000@gmail.com",
-      "firstName": "Sheikh Mahmudul Hasan Shium",
-      "lastName": "Shium",
-      "accountStatus": "active",
-      "roles": ["user"],
-      "lastLogin": null // Example: User hasn't logged in yet
-    }
-  ],
-  "pagination": { // Pagination metadata
-    "totalItems": 4,  // Total number of users (before pagination)
-    "currentPage": 1, // Current page number
-    "pageSize": 10,  // Number of items per page (example)
-    "totalPages": 1   // Total number of pages
-  }
-}
-
-//with 2fa
-{
-  "success": true,
-  "data": [
-    {
-      "_id": "68373bb20386e48d16144d6d",
-      "email": "officials.shium@gmail.com",
-      "firstName": "Sheikh Mahmudul Hasan",
-      "lastName": "Shium",
-      "accountStatus": "active",
-      "roles": ["owner", "admin"],
-      "lastLogin": "2025-06-16T10:00:00.000Z",
-      "is2FAEnabled": true // Added: Indicates if 2FA is enabled
-    },
-    {
-      "_id": "68377756edbb4d47472fa4a1",
-      "email": "sheikh.mahmudul.hasan.shium.aiub@gmail.com",
-      "firstName": "Sheikh Mahmudul Hasan",
-      "lastName": "Shium",
-      "accountStatus": "active",
-      "roles": ["admin"],
-      "lastLogin": "2025-06-15T18:30:00.000Z",
-      "is2FAEnabled": false // Added
-    },
-    {
-      "_id": "68470e79a5ec9905a77ebb09",
-      "email": "shanjidasaima2020@gmail.com",
-      "firstName": "Shanjida",
-      "lastName": "Saima",
-      "accountStatus": "active",
-      "roles": ["user"],
-      "lastLogin": "2025-06-16T08:00:00.000Z",
-      "is2FAEnabled": true // Added
-    },
-    {
-      "_id": "684d765e12e2d6b55490dd63",
-      "email": "sheikhmahmudulhasanshium2000@gmail.com",
-      "firstName": "Sheikh Mahmudul Hasan Shium",
-      "lastName": "Shium",
-      "accountStatus": "active",
-      "roles": ["user"],
-      "lastLogin": null,
-      "is2FAEnabled": false // Added
-    }
-  ],
-  "pagination": {
-    "totalItems": 4,
-    "currentPage": 1,
-    "pageSize": 10,
-    "totalPages": 1
-  }
-}
-//entry data
-{
-  "_id": "68373bb20386e48d16144d6d",
-  "email": "officials.shium@gmail.com",
-  "firstName": "Sheikh Mahmudul Hasan",
-  "lastName": "Shium",
-  "accountStatus": "active",
-  "roles": ["owner", "admin"],
-  "lastLogin": "2025-06-16T10:00:00.000Z",
-  "is2FAEnabled": true,
-  "twoFAMethod": "authenticatorApp",
-  "twoFASecret": "ENCRYPTED_SECRET_KEY", // Important: Encrypted!
-  "backupCodes": ["ENCRYPTED_CODE1", "ENCRYPTED_CODE2"] // Important: Encrypted!
-}
-Changelog - v1.1.0 (2024-06-27)
-This is a major feature and security release that introduces a suite of powerful new tools for administrators, significantly hardens security protocols around user authentication, and implements a comprehensive, user-friendly notification system. Additionally, the core social module has been fully implemented, moving from placeholder logic to a production-ready state.
-✨ New Features & Admin Enhancements
-Admin Analytics Dashboard: A new, admin-only endpoint (GET /users/analytics) has been introduced, providing key metrics on user engagement and platform growth.
-Weekly User Growth Statistics: The analytics service now calculates and displays week-over-week new user growth, including a percentage change.
-Automated Announcement Notifications: Creating a visible announcement now automatically generates an in-app system notification for all users, driving engagement with new content.
-Support Ticket Notifications: Users now receive an in-app system notification when an administrator replies to their support ticket, improving communication response times.
-Admin View for Hidden Content: The GET /announcements endpoint now allows authenticated administrators to view hidden (visible: false) announcements, which are inaccessible to the public.
-🔒 Security & Privacy Enhancements
-2FA Brute-Force Protection: Implemented a strict attempt limit. After 5 consecutive failed OTP entries, the user's account is locked from 2FA login for 24 hours to prevent credential stuffing and brute-force attacks.
-Reduced OTP Lifespan: The expiration time for 2FA One-Time Passwords (OTPs) has been reduced from 10 minutes to a much safer 2 minutes, minimizing the window for potential interception.
-Enhanced User Privacy: The public user directory (GET /users/directory) now respects the "Private Account" setting, correctly hiding users who have enabled this preference from public listings.
-Guaranteed Critical Email Delivery: All critical security emails (OTP codes, password resets, ban/unban notices) are now guaranteed to be sent, bypassing any user-defined notification preferences to ensure account security is never compromised.
-Secure Optional Authentication: A new OptionalAuthGuard was implemented to allow endpoints to serve both public and authenticated users securely without code duplication, ensuring proper access control on mixed-use routes.
-🚀 Improvements & Refinements
-Full Social Module Implementation: Replaced all placeholder logic in the SocialModule with complete, production-ready code. This includes full database interactions for:
-Friends System: Sending, accepting, rejecting, and removing friends.
-Followers System: Following and unfollowing users.
-User Blocking: Full implementation of blocking and unblocking users, which also automatically removes them from all mutual social connections (friends, followers, etc.).
-Advanced Notification Filtering: The GET /notifications endpoint has been upgraded to support powerful filtering by read status (isRead=true/false) and by notification type (e.g., announcement, support_reply).
-Granular Notification Controls: Users can now unsubscribe from non-essential "Announcement & Newsletter" emails via a direct link in the email footer that takes them to their profile settings page.
-Unified Welcome Experience: All new users, whether signing up via email/password or Google OAuth, now receive a consistent and professionally branded "Welcome to CiRQL" email and an in-app welcome notification.
-Build & Type-Safety Fixes: Resolved all Vercel build errors (TS2554, TS2339) by replacing deprecated Mongoose constructor patterns (new Model()) with the type-safe Model.create() method and correcting type definitions in various services, ensuring a stable and reliable build process.
+Changelog - v1.2.0 (2024-06-28)
+This is a major security and user experience release. It introduces a complete, secure Two-Factor Authentication (2FA) system, massively expands the intelligence and reach of the notification platform, and resolves a series of critical type-safety issues to ensure long-term stability.
+🔒 Security Enhancements
+Secure Two-Step 2FA Login Flow Implemented: The entire authentication process for users with 2FA enabled has been hardened.
+Partial Access Tokens: A successful email/password or Google OAuth login for a 2FA-enabled user now returns a short-lived, restricted partial access token.
+Secured Verification Endpoint: The POST /auth/2fa/verify-code endpoint is now protected by a new Jwt2faGuard, requiring the partial token to be present. This prevents unauthenticated users from attempting to guess OTPs.
+Secure User Identification: The user to be verified is now securely derived from the validated partial token, removing the previous insecure practice of passing the userId in the request body.
+Google OAuth 2FA: The 2FA flow is now correctly and securely triggered after a successful Google login, providing a consistent security experience.
+🔔 Notifications & Email System
+New Automated Notifications
+Welcome Back Message: Users who log in after a period of inactivity (30+ days) now receive a "Welcome Back" in-app notification and email, encouraging re-engagement.
+Ban Lifted Notification: When an admin lifts a user's ban, the user now receives an immediate in-app notification in addition to the existing email.
+New Follower Alerts: Users now receive an in-app notification when another user follows them.
+Admin Ticket Alerts: Administrators now receive both an in-app notification and an email alert whenever a new support ticket is created from any source (public contact form, registered user, or ban appeal), ensuring faster response times.
+System-Wide Integration & User Control
+New Announcement Notifications: Creating a new visible announcement now automatically triggers a global in-app notification for all users and sends an email to users who have opted in.
+Granular Unsubscribe: Users can effectively unsubscribe from non-essential emails (Announcements, etc.) by toggling the allowAnnouncementEmails preference in their settings.
+Guaranteed Critical Alerts: All critical account and security notifications (e.g., account ban/unban, password resets, 2FA codes) are now guaranteed to be sent via email, bypassing any user-defined notification preferences to ensure account security.
+Enhanced API Functionality
+Powerful Filtering: The GET /notifications endpoint now supports filtering by read status (isRead=true/false) and by notification type.
+Dynamic Unread Counter: A new endpoint GET /notifications/unread-count is available for dynamically updating a notification counter in the UI.
+Mark as Read: The API fully supports marking notifications as read individually (/notifications/:id/read) or in bulk (/notifications/read/batch), allowing the frontend to mark a notification as read upon click before redirecting.
+🔧 Bug Fixes & Code Quality
+Mongoose Population Type Safety: Corrected complex TypeScript type errors in the SupportService related to Mongoose's .populate() method. The Ticket schema has been updated to correctly type the user field as Types.ObjectId | UserDocument, making it compatible with both populated and unpopulated query results.
+Safe Object ID Comparisons: Resolved @typescript-eslint/no-base-to-string linting errors in the SupportService by replacing unsafe .toString() calls with the idiomatic and type-safe Mongoose .equals() method for comparing ObjectIDs.
+Safe Virtual Property Access: Fixed @typescript-eslint/no-unsafe-call errors in the AnnouncementService by adding a virtual id property to the Announcement schema, ensuring a safe and reliable way to access the document ID as a string.
+Resolved Module Import Errors: Corrected a missing login.dto.ts file that was causing a cascade of build-time and linting errors throughout the auth module. The application now compiles and builds without errors.

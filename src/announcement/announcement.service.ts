@@ -1,10 +1,11 @@
+// src/announcement/announcement.service.ts
 import {
   Injectable,
   NotFoundException,
-  ForbiddenException,
   Logger,
   BadRequestException,
   InternalServerErrorException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Error as MongooseError, FilterQuery } from 'mongoose';
@@ -15,65 +16,50 @@ import {
 } from './entities/announcement.entity';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
-import { ConfigService } from '@nestjs/config';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/schemas/notification.schema';
+import { UserDocument } from 'src/users/schemas/user.schema';
+import { UsersService } from 'src/users/users.service';
+import { Role } from 'src/common/enums/role.enum';
 
 @Injectable()
 export class AnnouncementsService {
-  private readonly adminList: string[];
   private readonly logger = new Logger(AnnouncementsService.name);
 
   constructor(
     @InjectModel(Announcement.name)
     private announcementModel: Model<AnnouncementDocument>,
-    private readonly configService: ConfigService,
-  ) {
-    const adminListString =
-      this.configService.get<string>('ADMIN_LIST') ?? '[]';
-    this.adminList = this.parseAdminList(adminListString);
-    this.logger.debug(
-      `Initialized with admin list: ${JSON.stringify(this.adminList)}`,
-    );
-  }
+    private readonly notificationsService: NotificationsService,
+    private readonly usersService: UsersService,
+  ) {}
 
-  private parseAdminList(adminListString: string): string[] {
-    try {
-      const parsed = JSON.parse(adminListString) as unknown;
-      if (
-        Array.isArray(parsed) &&
-        parsed.every((item) => typeof item === 'string')
-      ) {
-        return parsed;
-      }
-      this.logger.error(
-        'ADMIN_LIST is not a valid JSON array of strings. No users will be considered admins.',
-      );
-      return [];
-    } catch (error) {
-      this.logger.error(
-        'Error parsing ADMIN_LIST environment variable:',
-        error,
-      );
-      return [];
-    }
-  }
-
-  private isAdmin(userId: string): boolean {
-    return this.adminList.includes(userId);
+  private isAuthorized(user: UserDocument): boolean {
+    return user.roles.includes(Role.Admin) || user.roles.includes(Role.Owner);
   }
 
   async create(
     createAnnouncementDto: CreateAnnouncementDto,
-    userId: string,
+    creator: UserDocument,
   ): Promise<Announcement> {
-    if (!this.isAdmin(userId)) {
+    if (!this.isAuthorized(creator)) {
       throw new ForbiddenException(
         'You do not have permission to create announcements.',
       );
     }
-    const createdAnnouncement = new this.announcementModel(
-      createAnnouncementDto,
-    );
-    return createdAnnouncement.save();
+
+    const createdAnnouncement: AnnouncementDocument =
+      await this.announcementModel.create(createAnnouncementDto);
+
+    if (createdAnnouncement.visible) {
+      await this.notificationsService.createGlobalNotification({
+        title: `New Announcement: ${createdAnnouncement.title}`,
+        message: createdAnnouncement.content.substring(0, 100) + '...',
+        type: NotificationType.ANNOUNCEMENT,
+        linkUrl: `/announcements/${createdAnnouncement.id}`,
+      });
+    }
+
+    return createdAnnouncement;
   }
 
   async findAllSimple(): Promise<Announcement[]> {
@@ -138,30 +124,45 @@ export class AnnouncementsService {
   async update(
     id: string,
     updateAnnouncementDto: UpdateAnnouncementDto,
-    userId: string,
+    updater: UserDocument,
   ): Promise<Announcement> {
-    if (!this.isAdmin(userId)) {
+    if (!this.isAuthorized(updater)) {
       throw new ForbiddenException(
         'You do not have permission to update announcements.',
       );
     }
-    const updatedAnnouncement = await this.announcementModel
-      .findByIdAndUpdate(id, updateAnnouncementDto, { new: true })
-      .exec();
+    const originalAnnouncement = await this.findOne(id);
+
+    const updatedAnnouncement: AnnouncementDocument | null =
+      await this.announcementModel
+        .findByIdAndUpdate(id, updateAnnouncementDto, { new: true })
+        .exec();
 
     if (!updatedAnnouncement) {
       throw new NotFoundException(`Announcement with id ${id} not found`);
     }
+
+    if (updatedAnnouncement.visible && !originalAnnouncement.visible) {
+      await this.notificationsService.createGlobalNotification({
+        title: `New Announcement: ${updatedAnnouncement.title}`,
+        message: updatedAnnouncement.content.substring(0, 100) + '...',
+        type: NotificationType.ANNOUNCEMENT,
+        linkUrl: `/announcements/${updatedAnnouncement.id}`,
+      });
+    }
+
     return updatedAnnouncement;
   }
 
-  async remove(id: string, userId: string): Promise<void> {
-    if (!this.isAdmin(userId)) {
+  async remove(id: string, remover: UserDocument): Promise<void> {
+    if (!this.isAuthorized(remover)) {
       throw new ForbiddenException(
         'You do not have permission to delete announcements.',
       );
     }
-    const result = await this.announcementModel.findByIdAndDelete(id).exec();
+    const result: AnnouncementDocument | null = await this.announcementModel
+      .findByIdAndDelete(id)
+      .exec();
     if (!result) {
       throw new NotFoundException(`Announcement with id ${id} not found`);
     }

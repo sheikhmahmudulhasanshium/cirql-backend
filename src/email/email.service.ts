@@ -1,3 +1,4 @@
+// src/email/email.service.ts
 import {
   Injectable,
   Logger,
@@ -19,6 +20,13 @@ interface TicketReplyData {
   ticketSubject: string;
   replyContent: string;
   replierName: string;
+}
+
+interface AdminTicketNotificationData {
+  ticketId: string;
+  ticketSubject: string;
+  submittedBy: string;
+  preview: string;
 }
 
 @Injectable()
@@ -161,6 +169,26 @@ export class EmailService {
     await this.sendMail(mailOptions);
   }
 
+  async sendWelcomeBackEmail(email: string, name: string): Promise<void> {
+    const mailOptions: nodemailer.SendMailOptions = {
+      from: `"The CiRQL Team" <${this.adminEmail}>`,
+      to: email,
+      subject: 'Welcome Back to CiRQL! 👋',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+          <h2 style="color: #1A1A2E; text-align: center;">Welcome Back, ${name}!</h2>
+          <p>It's great to see you again! We've missed you. There might be new announcements and updates waiting for you.</p>
+          <p style="text-align: center; margin: 30px 0;">
+            <a href="${this.frontendUrl}" style="background-color: #3F8CFF; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">See What's New</a>
+          </p>
+          <hr style="border: none; border-top: 1px solid #eeeeee; margin-top: 20px;">
+          ${this.getEmailSignature()}
+        </div>
+      `,
+    };
+    await this.sendMail(mailOptions);
+  }
+
   async sendPasswordResetEmail(email: string, token: string): Promise<void> {
     const resetLink = `${this.frontendUrl}/reset-password?token=${token}`;
     const mailOptions: nodemailer.SendMailOptions = {
@@ -178,6 +206,35 @@ export class EmailService {
           <hr style="border: none; border-top: 1px solid #eeeeee; margin-top: 20px;">
            <p style="font-size: 11px; color: #999999; margin-top: 20px;">
             This is a critical security email and cannot be unsubscribed from.
+          </p>
+        </div>
+      `,
+    };
+    await this.sendMail(mailOptions);
+  }
+
+  async sendAdminTicketNotificationEmail(
+    data: AdminTicketNotificationData,
+  ): Promise<void> {
+    const ticketUrl = `${this.frontendUrl}/admin/support/${data.ticketId}`;
+    const mailOptions: nodemailer.SendMailOptions = {
+      from: `"Cirql Admin Notifier" <${this.adminEmail}>`,
+      to: this.adminEmail,
+      subject: `[New Ticket] ${data.ticketSubject}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+          <h2 style="color: #1A1A2E;">New Support Ticket Alert</h2>
+          <p>A new support ticket requires your attention.</p>
+          <p><strong>Submitted by:</strong> ${data.submittedBy}</p>
+          <hr style="border:none; border-top:1px solid #eee">
+          <p><strong>Preview:</strong></p>
+          <blockquote style="border-left: 4px solid #ccc; padding-left: 15px; margin: 0; font-style: italic;">
+            ${data.preview.replace(/\n/g, '<br>')}
+          </blockquote>
+          <hr style="border:none; border-top:1px solid #eee">
+          <p>You can view the full ticket and reply by clicking the button below:</p>
+          <p style="text-align: center; margin: 30px 0;">
+            <a href="${ticketUrl}" style="background-color: #42F2A1; color: #1A1A2E; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">View Ticket in Admin Panel</a>
           </p>
         </div>
       `,
