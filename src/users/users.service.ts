@@ -50,6 +50,7 @@ export type AdminUserListView = {
   accountStatus: string;
   roles: Role[];
   is2FAEnabled: boolean;
+  picture?: string; // --- FIX: Added the optional picture property ---
 };
 export interface FindAllUsersResponse {
   data: AdminUserListView[];
@@ -178,7 +179,7 @@ export class UsersService {
         message:
           "It's great to see you again! Check out what's new on the platform.",
         type: NotificationType.WELCOME_BACK,
-        linkUrl: '/home', // FIX: Corrected link from /dashboard
+        linkUrl: '/home',
       });
       if (user.email) {
         await this.emailService.sendWelcomeBackEmail(user.email, welcomeName);
@@ -223,12 +224,16 @@ export class UsersService {
       this.userModel
         .find(filter)
         .select('-password -loginHistory')
+        .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean()
         .exec(),
       this.userModel.countDocuments(filter).exec(),
     ]);
+
+    // --- START OF FIX ---
+    // The mapping function now correctly includes the 'picture' field.
     const sanitizedData: AdminUserListView[] = users.map((user) => ({
       _id: user._id,
       email: user.email,
@@ -237,7 +242,10 @@ export class UsersService {
       accountStatus: user.accountStatus,
       roles: user.roles,
       is2FAEnabled: user.is2FAEnabled,
+      picture: user.picture, // This line ensures the picture is included
     }));
+    // --- END OF FIX ---
+
     return { data: sanitizedData, total, page, limit };
   }
 

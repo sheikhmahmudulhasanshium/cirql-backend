@@ -27,16 +27,26 @@ import { CreateAppealDto } from './dto/create-appeal.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/schemas/notification.schema';
 
+// --- START: MODIFICATION ---
+// Define a clear, reusable type for the shape of the user object
+// after it has been populated by a .lean() query.
+type LeanPopulatedUser = {
+  _id: Types.ObjectId;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  picture?: string;
+};
+// --- END: MODIFICATION ---
+
 export interface TicketSummary {
   _id: Types.ObjectId;
-  user?: Types.ObjectId | Partial<UserDocument> | null;
+  user?: LeanPopulatedUser | null;
   guestName?: string;
   guestEmail?: string;
   category: TicketCategory;
   subject: string;
   status: TicketStatus;
-  lastSeenByUserAt: Date | null;
-  lastSeenByAdminAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   hasUnseenMessages: boolean;
@@ -101,7 +111,6 @@ export class SupportService {
       );
     }
 
-    // FIX: Use a type-safe check. Since it's populated, we can safely access _id.
     const ticketOwnerId = ticket.user?._id;
     const isOwner =
       ticket.user && ticketOwnerId && user._id.equals(ticketOwnerId);
@@ -218,7 +227,6 @@ export class SupportService {
       userPerformingAction.roles.includes(Role.Admin) ||
       userPerformingAction.roles.includes(Role.Owner);
 
-    // FIX: Use a type-safe check. Since it's populated, we can safely access _id.
     const ticketOwnerId = ticket.user?._id;
     const isOwner =
       ticket.user &&
@@ -239,7 +247,6 @@ export class SupportService {
     const isAdmin =
       user.roles.includes(Role.Admin) || user.roles.includes(Role.Owner);
 
-    // FIX: This robust check handles both ObjectId and populated UserDocument cases.
     let isOwner = false;
     if (ticketFromDb.user) {
       const userIdToCompare =
@@ -387,16 +394,20 @@ export class SupportService {
       .lean()
       .exec();
 
+    // The mapping here is simplified for consistency.
     return tickets.map((ticket) => ({
       _id: ticket._id,
-      user: ticket.user as Types.ObjectId | undefined,
+      // --- START: MODIFICATION ---
+      // This is safe because we didn't populate 'user' in this query.
+      // It remains a Types.ObjectId, which fits the TicketSummary interface.
+      // We explicitly cast to unknown first, then to the target type to satisfy TS.
+      user: ticket.user as unknown as LeanPopulatedUser,
+      // --- END: MODIFICATION ---
       guestName: ticket.guestName,
       guestEmail: ticket.guestEmail,
       category: ticket.category,
       subject: ticket.subject,
       status: ticket.status,
-      lastSeenByUserAt: ticket.lastSeenByUserAt,
-      lastSeenByAdminAt: ticket.lastSeenByAdminAt,
       createdAt: ticket.createdAt,
       updatedAt: ticket.updatedAt,
       hasUnseenMessages:
@@ -410,7 +421,7 @@ export class SupportService {
   async getAllTicketsForAdmin(): Promise<TicketSummary[]> {
     const tickets = await this.ticketModel
       .find()
-      .populate('user', 'firstName lastName email picture')
+      .populate('user', '_id firstName lastName email picture')
       .sort({ updatedAt: -1 })
       .select('-messages')
       .lean()
@@ -418,14 +429,18 @@ export class SupportService {
 
     return tickets.map((ticket) => ({
       _id: ticket._id,
-      user: ticket.user as Partial<UserDocument> | undefined,
+      // --- START: MODIFICATION ---
+      // By casting to 'unknown' first, we signal to TypeScript that we are
+      // intentionally changing the type from what it inferred. Then we cast
+      // to our specific 'LeanPopulatedUser' type, which is safer than 'any'.
+      // This satisfies the strict linter rule.
+      user: ticket.user as unknown as LeanPopulatedUser,
+      // --- END: MODIFICATION ---
       guestName: ticket.guestName,
       guestEmail: ticket.guestEmail,
       category: ticket.category,
       subject: ticket.subject,
       status: ticket.status,
-      lastSeenByUserAt: ticket.lastSeenByUserAt,
-      lastSeenByAdminAt: ticket.lastSeenByAdminAt,
       createdAt: ticket.createdAt,
       updatedAt: ticket.updatedAt,
       hasUnseenMessages:
