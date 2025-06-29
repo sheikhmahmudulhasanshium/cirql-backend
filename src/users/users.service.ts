@@ -102,7 +102,7 @@ export class UsersService {
     return this.userModel
       .findById(id)
       .select(
-        '+password +twoFactorAuthenticationCode +twoFactorAuthenticationCodeExpires +twoFactorAttempts +twoFactorLockoutUntil',
+        '+password +twoFactorAuthenticationCode +twoFactorAuthenticationCodeExpires +twoFactorAttempts +twoFactorLockoutUntil +loginHistory',
       )
       .exec();
   }
@@ -111,7 +111,7 @@ export class UsersService {
     return this.userModel
       .findOne({ email: email.toLowerCase() })
       .select(
-        '+password +twoFactorAuthenticationCode +twoFactorAuthenticationCodeExpires +twoFactorAttempts +twoFactorLockoutUntil',
+        '+password +twoFactorAuthenticationCode +twoFactorAuthenticationCodeExpires +twoFactorAttempts +twoFactorLockoutUntil +loginHistory',
       )
       .exec();
   }

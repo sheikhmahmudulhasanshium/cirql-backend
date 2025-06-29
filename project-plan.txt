@@ -238,31 +238,19 @@ cirql-backend/
   "linkUrl": "https://cirql-backend.vercel.app/api/"
 }
 
-
-Changelog - v1.2.0 (2024-06-28)
-This is a major security and user experience release. It introduces a complete, secure Two-Factor Authentication (2FA) system, massively expands the intelligence and reach of the notification platform, and resolves a series of critical type-safety issues to ensure long-term stability.
+Changelog - v1.2.1 (2024-06-29)
+This is a critical security and stability release that overhauls the Two-Factor Authentication (2FA) deactivation process, hardens backend validation, and resolves a series of logic flaws that were causing application crashes and blocking core functionality.
 🔒 Security Enhancements
-Secure Two-Step 2FA Login Flow Implemented: The entire authentication process for users with 2FA enabled has been hardened.
-Partial Access Tokens: A successful email/password or Google OAuth login for a 2FA-enabled user now returns a short-lived, restricted partial access token.
-Secured Verification Endpoint: The POST /auth/2fa/verify-code endpoint is now protected by a new Jwt2faGuard, requiring the partial token to be present. This prevents unauthenticated users from attempting to guess OTPs.
-Secure User Identification: The user to be verified is now securely derived from the validated partial token, removing the previous insecure practice of passing the userId in the request body.
-Google OAuth 2FA: The 2FA flow is now correctly and securely triggered after a successful Google login, providing a consistent security experience.
-🔔 Notifications & Email System
-New Automated Notifications
-Welcome Back Message: Users who log in after a period of inactivity (30+ days) now receive a "Welcome Back" in-app notification and email, encouraging re-engagement.
-Ban Lifted Notification: When an admin lifts a user's ban, the user now receives an immediate in-app notification in addition to the existing email.
-New Follower Alerts: Users now receive an in-app notification when another user follows them.
-Admin Ticket Alerts: Administrators now receive both an in-app notification and an email alert whenever a new support ticket is created from any source (public contact form, registered user, or ban appeal), ensuring faster response times.
-System-Wide Integration & User Control
-New Announcement Notifications: Creating a new visible announcement now automatically triggers a global in-app notification for all users and sends an email to users who have opted in.
-Granular Unsubscribe: Users can effectively unsubscribe from non-essential emails (Announcements, etc.) by toggling the allowAnnouncementEmails preference in their settings.
-Guaranteed Critical Alerts: All critical account and security notifications (e.g., account ban/unban, password resets, 2FA codes) are now guaranteed to be sent via email, bypassing any user-defined notification preferences to ensure account security.
-Enhanced API Functionality
-Powerful Filtering: The GET /notifications endpoint now supports filtering by read status (isRead=true/false) and by notification type.
-Dynamic Unread Counter: A new endpoint GET /notifications/unread-count is available for dynamically updating a notification counter in the UI.
-Mark as Read: The API fully supports marking notifications as read individually (/notifications/:id/read) or in bulk (/notifications/read/batch), allowing the frontend to mark a notification as read upon click before redirecting.
-🔧 Bug Fixes & Code Quality
-Mongoose Population Type Safety: Corrected complex TypeScript type errors in the SupportService related to Mongoose's .populate() method. The Ticket schema has been updated to correctly type the user field as Types.ObjectId | UserDocument, making it compatible with both populated and unpopulated query results.
-Safe Object ID Comparisons: Resolved @typescript-eslint/no-base-to-string linting errors in the SupportService by replacing unsafe .toString() calls with the idiomatic and type-safe Mongoose .equals() method for comparing ObjectIDs.
-Safe Virtual Property Access: Fixed @typescript-eslint/no-unsafe-call errors in the AnnouncementService by adding a virtual id property to the Announcement schema, ensuring a safe and reliable way to access the document ID as a string.
-Resolved Module Import Errors: Corrected a missing login.dto.ts file that was causing a cascade of build-time and linting errors throughout the auth module. The application now compiles and builds without errors.
+Secure OTP-Based 2FA Deactivation Implemented: The entire flow for disabling 2FA has been rebuilt from the ground up to eliminate a critical security and logic flaw.
+Password Verification Removed: The previous, flawed implementation that incorrectly required a password for deactivation has been completely removed.
+New Secure Endpoint (POST /auth/2fa/request-disable-code): A new endpoint has been introduced that allows a logged-in user to request a secure One-Time Passcode (OTP), which is then sent to their registered email address. This step verifies user intent and control over the account.
+Hardened Disable Endpoint (POST /auth/2fa/disable): The final deactivation endpoint no longer accepts a password. It now requires the 6-digit OTP from the email, which is securely verified on the backend against the hashed code in the database before proceeding. This flow is now secure and consistent for all users, regardless of whether they signed up via Google or email/password.
+🐛 Critical Bug Fixes & Stability Improvements
+Fixed 500 Internal Server Error on 2FA Login: Resolved a fatal crash (TypeError: Cannot read properties of undefined (reading 'length')) that occurred during the final step of 2FA login.
+Root Cause: The User schema had select: false on the loginHistory field, preventing it from being fetched from the database. The updateLastLogin service method then crashed when trying to access this non-existent property.
+Solution: The database queries in UsersService (findByIdForAuth and findOneByEmailForAuth) have been updated to explicitly select +loginHistory, ensuring the complete user document is available and preventing the crash.
+Resolved 400 Bad Request on API Calls: Fixed persistent validation errors that were blocking functionality like disabling 2FA.
+Root Cause: A logic mismatch between frontend payloads and backend validation rules. The frontend was sending an empty string ("") for optional fields, which failed validation rules like @MinLength().
+Solution: The frontend logic in Disable2faDialog.tsx was made more intelligent. It now conditionally builds the request payload, completely omitting optional fields when they are not needed, satisfying the backend's @IsOptional() validation rule correctly.
+Corrected TypeScript Type Mismatches: Resolved a build-blocking TypeScript error (Property 'googleId' does not exist on type 'User') in the frontend.
+Solution: The User interface within the frontend's AuthContext.tsx was updated to include the optional googleId property, bringing the frontend type definition in sync with the actual data structure provided by the backend. This ensures type safety and allows for more robust conditional logic in components.

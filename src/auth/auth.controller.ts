@@ -73,18 +73,36 @@ export class AuthController {
     return { message: 'Two-factor authentication has been enabled.' };
   }
 
+  // --- START OF FIX: NEW ENDPOINT ---
+  @Post('2fa/request-disable-code')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request a code to disable 2FA' })
+  async requestDisable2faCode(@CurrentUser() user: UserDocument) {
+    // This reuses the exact same logic as generating a login code.
+    await this.authService.generateAndSend2faCode(user);
+    return { message: 'A verification code has been sent to your email.' };
+  }
+  // --- END OF FIX: NEW ENDPOINT ---
+
+  // --- START OF FIX: MODIFIED ENDPOINT ---
   @Post('2fa/disable')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Disable email-based 2FA' })
+  @ApiOperation({
+    summary: 'Disable email-based 2FA using a verification code',
+  })
   async disable2fa(
     @CurrentUser() user: UserDocument,
-    @Body() disable2faDto: Disable2faDto,
+    @Body() disable2faDto: Disable2faDto, // This DTO now expects a `code`
   ) {
+    // The service now handles code verification instead of password checking.
     await this.authService.disableTwoFactorAuth(user, disable2faDto);
     return { message: 'Two-factor authentication has been disabled.' };
   }
+  // --- END OF FIX: MODIFIED ENDPOINT ---
 
   @Get('google')
   @UseGuards(AuthGuard('google'))
@@ -123,18 +141,18 @@ export class AuthController {
       return { url: errorUrl.toString() };
     }
 
+    const redirectUrl = new URL(finalRedirectUrl);
+
     if (user.is2FAEnabled) {
       await this.authService.generateAndSend2faCode(user);
       const { accessToken: partialToken } =
         this.authService.getPartialAccessToken(user);
-      const redirectUrl = new URL(`${frontendUrl}/log-in/2fa`);
       redirectUrl.searchParams.set('token', partialToken);
-      return { url: redirectUrl.toString() };
+    } else {
+      const authResult = this.authService.getFullAccessToken(user);
+      redirectUrl.searchParams.set('token', authResult.accessToken);
     }
 
-    const authResult = this.authService.getFullAccessToken(user);
-    const redirectUrl = new URL(finalRedirectUrl);
-    redirectUrl.searchParams.set('token', authResult.accessToken);
     return { url: redirectUrl.toString() };
   }
 

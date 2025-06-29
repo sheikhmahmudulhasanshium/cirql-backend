@@ -184,6 +184,8 @@ export class AuthService {
     });
   }
 
+  // --- START OF FIX ---
+  // The logic for disabling 2FA is now completely rewritten to use a verification code.
   async disableTwoFactorAuth(
     user: UserDocument,
     disable2faDto: Disable2faDto,
@@ -192,24 +194,41 @@ export class AuthService {
       throw new BadRequestException('2FA is not enabled.');
     }
 
-    const userWithPassword = await this.usersService.findByIdForAuth(user._id);
-    if (!userWithPassword) {
-      throw new InternalServerErrorException(
-        'Could not retrieve user for 2FA deactivation.',
+    // We need to fetch the user again to get the sensitive 2FA fields from the DB.
+    const userWith2faSecret = await this.usersService.findByIdForAuth(user._id);
+    if (
+      !userWith2faSecret?.twoFactorAuthenticationCode ||
+      !userWith2faSecret?.twoFactorAuthenticationCodeExpires
+    ) {
+      throw new BadRequestException(
+        'No verification code has been issued. Please request a code first.',
       );
     }
 
-    if (userWithPassword.password) {
-      const isPasswordMatch = await bcrypt.compare(
-        disable2faDto.password,
-        userWithPassword.password,
+    if (new Date() > userWith2faSecret.twoFactorAuthenticationCodeExpires) {
+      throw new UnauthorizedException(
+        'Code has expired. Please request a new code.',
       );
-      if (!isPasswordMatch) {
-        throw new UnauthorizedException('Invalid password.');
-      }
     }
 
-    await this.usersService.set2FA(user._id.toString(), false);
+    const isCodeMatch = await bcrypt.compare(
+      disable2faDto.code,
+      userWith2faSecret.twoFactorAuthenticationCode,
+    );
+
+    if (!isCodeMatch) {
+      throw new UnauthorizedException('Invalid verification code.');
+    }
+
+    // If code is valid, disable 2FA and clear all related fields.
+    userWith2faSecret.is2FAEnabled = false;
+    userWith2faSecret.twoFactorAuthenticationCode = undefined;
+    userWith2faSecret.twoFactorAuthenticationCodeExpires = undefined;
+    userWith2faSecret.twoFactorAttempts = 0;
+    userWith2faSecret.twoFactorLockoutUntil = undefined;
+    await userWith2faSecret.save();
+
+    // Log the successful action.
     await this.auditService.createLog({
       actor: user,
       action: AuditAction.TFA_DISABLED,
@@ -217,6 +236,7 @@ export class AuthService {
       targetType: 'User',
     });
   }
+  // --- END OF FIX ---
 
   public async generateAndSend2faCode(user: UserDocument): Promise<void> {
     if (!user.email) return;

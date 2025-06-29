@@ -1,4 +1,3 @@
-// src/auth/strategies/jwt-2fa.strategy.ts
 import {
   Injectable,
   UnauthorizedException,
@@ -57,7 +56,11 @@ export class Jwt2faStrategy extends PassportStrategy(Strategy, 'jwt-2fa') {
 
     let user: UserDocument | null = null;
     try {
-      user = await this.usersService.findById(payload.sub);
+      // --- THE FIX: Use the `findByIdForAuth` method ---
+      // This method from your UsersService correctly selects the sensitive 2FA
+      // fields (+twoFactorAuthenticationCode, etc.) from the database.
+      user = await this.usersService.findByIdForAuth(payload.sub);
+      // --- END OF FIX ---
 
       if (!user) {
         this.logger.warn(

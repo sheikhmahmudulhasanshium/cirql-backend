@@ -123,9 +123,9 @@ export class EmailService {
     code: string,
   ): Promise<void> {
     const mailOptions: nodemailer.SendMailOptions = {
-      from: `"Cirql Security" <${this.adminEmail}>`,
+      from: `"CiRQL Security" <${this.adminEmail}>`,
       to: email,
-      subject: 'Your Cirql Login Code',
+      subject: 'Your CiRQL Login Code',
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
           <h2 style="color: #1A1A2E;">Your Two-Factor Login Code</h2>
@@ -153,11 +153,11 @@ export class EmailService {
         <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
           <p align="center" style="text-align: center;">
             <a href="https://cirql.vercel.app/" target="_blank">
-              <img src="https://raw.githubusercontent.com/sheikhmahmudulhasanshium/cirql-frontend/refs/heads/main/public/logo.png" width="200" alt="Cirql Logo" />
+              <img src="https://raw.githubusercontent.com/sheikhmahmudulhasanshium/cirql-frontend/refs/heads/main/public/logo.png" width="200" alt="CiRQL Logo" />
             </a>
           </p>
           <h2 style="color: #1A1A2E; text-align: center;">Welcome, ${name}!</h2>
-          <p>We're thrilled to have you join the Cirql community. We are a platform designed to help you stay in the loop with the people and topics that matter most to you.</p>
+          <p>We're thrilled to have you join the CiRQL community. We are a platform designed to help you stay in the loop with the people and topics that matter most to you.</p>
           <p style="text-align: center; margin: 30px 0;">
             <a href="${this.frontendUrl}" style="background-color: #3F8CFF; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">Go to Your Dashboard</a>
           </p>
@@ -192,9 +192,9 @@ export class EmailService {
   async sendPasswordResetEmail(email: string, token: string): Promise<void> {
     const resetLink = `${this.frontendUrl}/reset-password?token=${token}`;
     const mailOptions: nodemailer.SendMailOptions = {
-      from: `"Cirql Security" <${this.adminEmail}>`,
+      from: `"CiRQL Security" <${this.adminEmail}>`,
       to: email,
-      subject: 'Reset Your Cirql Password',
+      subject: 'Reset Your CiRQL Password',
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
           <h2 style="color: #1A1A2E;">Password Reset Request</h2>
@@ -218,7 +218,7 @@ export class EmailService {
   ): Promise<void> {
     const ticketUrl = `${this.frontendUrl}/admin/support/${data.ticketId}`;
     const mailOptions: nodemailer.SendMailOptions = {
-      from: `"Cirql Admin Notifier" <${this.adminEmail}>`,
+      from: `"CiRQL Admin Notifier" <${this.adminEmail}>`,
       to: this.adminEmail,
       subject: `[New Ticket] ${data.ticketSubject}`,
       html: `
@@ -244,7 +244,7 @@ export class EmailService {
 
   async sendContactFormEmail(formData: ContactFormData): Promise<void> {
     const mailOptions: nodemailer.SendMailOptions = {
-      from: `"Cirql Support" <${this.adminEmail}>`,
+      from: `"CiRQL Support" <${this.adminEmail}>`,
       to: this.adminEmail,
       replyTo: formData.fromEmail,
       subject: `New Ticket from ${formData.name}`,
@@ -265,7 +265,7 @@ export class EmailService {
   async sendTicketReplyEmail(data: TicketReplyData): Promise<void> {
     const ticketUrl = `${this.frontendUrl}/contacts/${data.ticketId}`;
     const mailOptions: nodemailer.SendMailOptions = {
-      from: `"Cirql Support" <${this.adminEmail}>`,
+      from: `"CiRQL Support" <${this.adminEmail}>`,
       to: data.to,
       subject: data.ticketSubject,
       html: `
@@ -296,13 +296,13 @@ export class EmailService {
     details: string,
   ): Promise<void> {
     const mailOptions: nodemailer.SendMailOptions = {
-      from: `"Cirql Account Services" <${this.adminEmail}>`,
+      from: `"CiRQL Account Services" <${this.adminEmail}>`,
       to: email,
       subject: subject,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
           <h2 style="color: #1A1A2E;">${headline}</h2>
-          <p>This is a notification regarding the status of your Cirql account.</p>
+          <p>This is a notification regarding the status of your CiRQL account.</p>
           <hr style="border: none; border-top: 1px solid #eee;">
           <p><strong>Details:</strong></p>
           <blockquote style="border-left: 4px solid #ccc; padding-left: 15px; margin: 0; font-style: italic;">
