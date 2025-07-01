@@ -1,4 +1,3 @@
-// src/auth/auth.module.ts
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
@@ -24,6 +23,9 @@ import {
   TwoFactorTokenSchema,
 } from './schemas/two-factor-token.schema';
 
+// --- NEW: Import the ActivityModule ---
+import { ActivityModule } from '../activity/activity.module';
+
 @Module({
   imports: [
     forwardRef(() => UsersModule),
@@ -41,6 +43,8 @@ import {
     ConfigModule,
     EmailModule,
     AuditModule,
+    // --- FIX: Add ActivityModule to the imports array ---
+    ActivityModule,
     MongooseModule.forFeature([
       { name: PasswordResetToken.name, schema: PasswordResetTokenSchema },
       { name: TwoFactorToken.name, schema: TwoFactorTokenSchema },

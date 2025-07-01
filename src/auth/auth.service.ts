@@ -1,4 +1,3 @@
-// src/auth/auth.service.ts
 import {
   Injectable,
   InternalServerErrorException,
@@ -7,9 +6,10 @@ import {
   BadRequestException,
   UnauthorizedException,
   ForbiddenException,
+  // UnprocessableEntityException is not used in the original code, so we remove it to fix the lint error.
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, Types, Document } from 'mongoose'; // Import Document
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -23,11 +23,14 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/schemas/audit-log.schema';
 import {
   PasswordResetToken,
-  PasswordResetToken as PasswordResetTokenDocument,
+  // --- FIX: This import now works because we exported the type from the schema file ---
+  PasswordResetTokenDocument,
 } from './schemas/password-reset-token.schema';
 import { LoginDto } from './dto/login.dto';
 import { Disable2faDto } from './dto/disable-2fa.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ActivityService } from '../activity/activity.service';
+import { ActivityAction } from '../activity/schemas/activity-log.schema';
 
 interface Jwt2faPartialPayload {
   sub: string;
@@ -76,6 +79,7 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly auditService: AuditService,
     private readonly configService: ConfigService,
+    private readonly activityService: ActivityService,
   ) {}
 
   async login(
@@ -184,8 +188,6 @@ export class AuthService {
     });
   }
 
-  // --- START OF FIX ---
-  // The logic for disabling 2FA is now completely rewritten to use a verification code.
   async disableTwoFactorAuth(
     user: UserDocument,
     disable2faDto: Disable2faDto,
@@ -194,7 +196,6 @@ export class AuthService {
       throw new BadRequestException('2FA is not enabled.');
     }
 
-    // We need to fetch the user again to get the sensitive 2FA fields from the DB.
     const userWith2faSecret = await this.usersService.findByIdForAuth(user._id);
     if (
       !userWith2faSecret?.twoFactorAuthenticationCode ||
@@ -220,7 +221,6 @@ export class AuthService {
       throw new UnauthorizedException('Invalid verification code.');
     }
 
-    // If code is valid, disable 2FA and clear all related fields.
     userWith2faSecret.is2FAEnabled = false;
     userWith2faSecret.twoFactorAuthenticationCode = undefined;
     userWith2faSecret.twoFactorAuthenticationCodeExpires = undefined;
@@ -228,7 +228,6 @@ export class AuthService {
     userWith2faSecret.twoFactorLockoutUntil = undefined;
     await userWith2faSecret.save();
 
-    // Log the successful action.
     await this.auditService.createLog({
       actor: user,
       action: AuditAction.TFA_DISABLED,
@@ -236,7 +235,6 @@ export class AuthService {
       targetType: 'User',
     });
   }
-  // --- END OF FIX ---
 
   public async generateAndSend2faCode(user: UserDocument): Promise<void> {
     if (!user.email) return;
@@ -314,6 +312,7 @@ export class AuthService {
     const potentialTokens = await this.passwordResetTokenModel.find({
       expiresAt: { $gt: new Date() },
     });
+    // --- FIX: All errors below are now gone because PasswordResetTokenDocument is a valid type ---
     let validTokenDoc: PasswordResetTokenDocument | null = null;
     for (const doc of potentialTokens) {
       if (await bcrypt.compare(rawToken, doc.token)) {
@@ -362,13 +361,27 @@ export class AuthService {
         return user.save();
       }
       this.logger.log(`Creating new user for email: ${email}`);
-      return await this.usersService.create({
+      const newUser = await this.usersService.create({
         googleId,
         email,
         firstName,
         lastName,
         picture,
       });
+
+      try {
+        await this.activityService.logEvent({
+          userId: newUser._id,
+          action: ActivityAction.USER_REGISTER,
+        });
+      } catch (logError) {
+        this.logger.error(
+          'Failed to log registration activity after user creation',
+          logError,
+        );
+      }
+
+      return newUser;
     } catch (err: unknown) {
       const error = err as Error;
       this.logger.error(

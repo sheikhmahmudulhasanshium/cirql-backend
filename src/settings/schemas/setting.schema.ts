@@ -1,3 +1,4 @@
+// src/settings/schemas/setting.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
@@ -58,6 +59,17 @@ export class UiCustomizationPreferences extends Document {
   theme: 'light' | 'dark' | 'system';
 }
 
+// --- ADDED: Schema for Wellbeing Preferences ---
+@Schema({ _id: false })
+export class WellbeingPreferences extends Document {
+  @Prop({ default: false })
+  isBreakReminderEnabled: boolean;
+
+  @Prop({ default: 30, enum: [15, 30, 45, 60] })
+  breakReminderIntervalMinutes: 15 | 30 | 45 | 60;
+}
+// --- END ADDED ---
+
 export type SettingDocument = Setting & Document;
 
 @Schema({ timestamps: true })
@@ -109,6 +121,14 @@ export class Setting {
     default: () => ({}),
   })
   uiCustomizationPreferences: UiCustomizationPreferences;
+
+  // --- ADDED: New property to the main Setting schema ---
+  @Prop({
+    type: SchemaFactory.createForClass(WellbeingPreferences),
+    default: () => ({}),
+  })
+  wellbeingPreferences: WellbeingPreferences;
+  // --- END ADDED ---
 }
 
 export const SettingSchema = SchemaFactory.createForClass(Setting);

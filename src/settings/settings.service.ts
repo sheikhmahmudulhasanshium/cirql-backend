@@ -33,10 +33,91 @@ export class SettingsService {
     userId: string,
     updateSettingDto: UpdateSettingDto,
   ): Promise<SettingDocument> {
+    const flattenedUpdate: Record<string, any> = {};
+
+    // --- START OF THE DEFINITIVE, EXPLICIT FIX ---
+    // This approach avoids all loops and dynamic property access,
+    // which guarantees it will pass the strict linter rules.
+
+    if (updateSettingDto.notificationPreferences) {
+      const prefs = updateSettingDto.notificationPreferences;
+      if (prefs.emailNotifications !== undefined)
+        flattenedUpdate['notificationPreferences.emailNotifications'] =
+          prefs.emailNotifications;
+      if (prefs.pushNotifications !== undefined)
+        flattenedUpdate['notificationPreferences.pushNotifications'] =
+          prefs.pushNotifications;
+      if (prefs.allowAnnouncementEmails !== undefined)
+        flattenedUpdate['notificationPreferences.allowAnnouncementEmails'] =
+          prefs.allowAnnouncementEmails;
+    }
+
+    if (updateSettingDto.accountSettingsPreferences) {
+      const prefs = updateSettingDto.accountSettingsPreferences;
+      if (prefs.isPrivate !== undefined)
+        flattenedUpdate['accountSettingsPreferences.isPrivate'] =
+          prefs.isPrivate;
+    }
+
+    if (updateSettingDto.securitySettingsPreferences) {
+      const prefs = updateSettingDto.securitySettingsPreferences;
+      if (prefs.recoveryMethod !== undefined)
+        flattenedUpdate['securitySettingsPreferences.recoveryMethod'] =
+          prefs.recoveryMethod;
+    }
+
+    if (updateSettingDto.accessibilityOptionsPreferences) {
+      const prefs = updateSettingDto.accessibilityOptionsPreferences;
+      if (prefs.highContrastMode !== undefined)
+        flattenedUpdate['accessibilityOptionsPreferences.highContrastMode'] =
+          prefs.highContrastMode;
+      if (prefs.screenReaderSupport !== undefined)
+        flattenedUpdate['accessibilityOptionsPreferences.screenReaderSupport'] =
+          prefs.screenReaderSupport;
+      if (prefs.font !== undefined)
+        flattenedUpdate['accessibilityOptionsPreferences.font'] = prefs.font;
+      if (prefs.textSize !== undefined)
+        flattenedUpdate['accessibilityOptionsPreferences.textSize'] =
+          prefs.textSize;
+    }
+
+    if (updateSettingDto.contentPreferences) {
+      const prefs = updateSettingDto.contentPreferences;
+      if (prefs.interests !== undefined)
+        flattenedUpdate['contentPreferences.interests'] = prefs.interests;
+    }
+
+    if (updateSettingDto.uiCustomizationPreferences) {
+      const prefs = updateSettingDto.uiCustomizationPreferences;
+      if (prefs.layout !== undefined)
+        flattenedUpdate['uiCustomizationPreferences.layout'] = prefs.layout;
+      if (prefs.animationsEnabled !== undefined)
+        flattenedUpdate['uiCustomizationPreferences.animationsEnabled'] =
+          prefs.animationsEnabled;
+      if (prefs.theme !== undefined)
+        flattenedUpdate['uiCustomizationPreferences.theme'] = prefs.theme;
+    }
+
+    if (updateSettingDto.wellbeingPreferences) {
+      const prefs = updateSettingDto.wellbeingPreferences;
+      if (prefs.isBreakReminderEnabled !== undefined)
+        flattenedUpdate['wellbeingPreferences.isBreakReminderEnabled'] =
+          prefs.isBreakReminderEnabled;
+      if (prefs.breakReminderIntervalMinutes !== undefined)
+        flattenedUpdate['wellbeingPreferences.breakReminderIntervalMinutes'] =
+          prefs.breakReminderIntervalMinutes;
+    }
+
+    // Handle any top-level properties
+    if (updateSettingDto.isDefault !== undefined) {
+      flattenedUpdate.isDefault = updateSettingDto.isDefault;
+    }
+    // --- END OF THE DEFINITIVE FIX ---
+
     const updatedSettings = await this.settingModel
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
-        { $set: updateSettingDto },
+        { $set: flattenedUpdate },
         { new: true, upsert: true, setDefaultsOnInsert: true },
       )
       .exec();
@@ -49,7 +130,6 @@ export class SettingsService {
     return updatedSettings;
   }
 
-  // FIX: New dedicated service method for theme updates
   async updateTheme(
     userId: string,
     theme: 'light' | 'dark' | 'system',
@@ -81,11 +161,16 @@ export class SettingsService {
       return this.createDefaultSettings(userId);
     }
 
-    await this.settingModel.findByIdAndDelete(existingSettings._id);
+    const defaultInstance = new this.settingModel({ userId: userObjectId });
 
-    return this.settingModel.create({
-      _id: existingSettings._id,
-      userId: userObjectId,
-    });
+    const resetSettings = await this.settingModel
+      .findOneAndReplace(
+        { _id: existingSettings._id },
+        defaultInstance.toObject(),
+        { new: true },
+      )
+      .exec();
+
+    return resetSettings!;
   }
 }

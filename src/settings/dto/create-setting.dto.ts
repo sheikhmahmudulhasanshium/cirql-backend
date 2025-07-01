@@ -1,3 +1,4 @@
+// src/settings/dto/create-setting.dto.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
@@ -17,6 +18,13 @@ export class NotificationPreferencesDto {
   @ApiProperty({ example: false })
   @IsBoolean()
   pushNotifications: boolean;
+
+  // --- THIS IS THE FIX ---
+  // This property was missing, causing the type errors.
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  allowAnnouncementEmails: boolean;
+  // --- END OF FIX ---
 }
 
 export class AccountSettingsPreferencesDto {
@@ -73,6 +81,20 @@ export class UiCustomizationPreferencesDto {
   theme: 'light' | 'dark' | 'system';
 }
 
+export class WellbeingPreferencesDto {
+  @ApiProperty({ example: true, description: 'Enable take a break reminders' })
+  @IsBoolean()
+  isBreakReminderEnabled: boolean;
+
+  @ApiProperty({
+    example: 30,
+    enum: [15, 30, 45, 60],
+    description: 'Interval in minutes for break reminders',
+  })
+  @IsEnum([15, 30, 45, 60])
+  breakReminderIntervalMinutes: 15 | 30 | 45 | 60;
+}
+
 export class CreateSettingDto {
   @ApiProperty()
   @IsString()
@@ -88,7 +110,6 @@ export class CreateSettingDto {
   @Type(() => NotificationPreferencesDto)
   notificationPreferences?: NotificationPreferencesDto;
 
-  // Apply similar validation to other nested DTOs
   @ApiPropertyOptional({ type: AccountSettingsPreferencesDto })
   @IsObject()
   @ValidateNested()
@@ -118,4 +139,10 @@ export class CreateSettingDto {
   @ValidateNested()
   @Type(() => UiCustomizationPreferencesDto)
   uiCustomizationPreferences?: UiCustomizationPreferencesDto;
+
+  @ApiPropertyOptional({ type: WellbeingPreferencesDto })
+  @IsObject()
+  @ValidateNested()
+  @Type(() => WellbeingPreferencesDto)
+  wellbeingPreferences?: WellbeingPreferencesDto;
 }

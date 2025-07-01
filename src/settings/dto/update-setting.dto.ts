@@ -15,6 +15,8 @@ import {
   AccessibilityOptionsPreferencesDto,
   ContentPreferencesDto,
   UiCustomizationPreferencesDto,
+  // --- ADDED: Import the new base DTO ---
+  WellbeingPreferencesDto,
 } from './create-setting.dto';
 
 // Create Partial types for each nested DTO
@@ -35,9 +37,13 @@ class UpdateUiCustomizationPreferencesDto extends PartialType(
   UiCustomizationPreferencesDto,
 ) {}
 
+// --- ADDED: Create a partial DTO for wellbeing settings ---
+class UpdateWellbeingPreferencesDto extends PartialType(
+  WellbeingPreferencesDto,
+) {}
+// --- END ADDED ---
+
 // This DTO is for updating multiple settings at once via the main settings page.
-// We now define it explicitly to use our new partial nested DTOs,
-// which solves the validation issue for partial nested updates.
 export class UpdateSettingDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -85,6 +91,15 @@ export class UpdateSettingDto {
   @ValidateNested()
   @Type(() => UpdateUiCustomizationPreferencesDto)
   uiCustomizationPreferences?: UpdateUiCustomizationPreferencesDto;
+
+  // --- ADDED: Wellbeing DTO to the main Update DTO ---
+  @ApiPropertyOptional({ type: UpdateWellbeingPreferencesDto })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => UpdateWellbeingPreferencesDto)
+  wellbeingPreferences?: UpdateWellbeingPreferencesDto;
+  // --- END ADDED ---
 }
 
 // This new, specific DTO is for the dedicated theme update endpoint.
