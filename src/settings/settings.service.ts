@@ -1,4 +1,3 @@
-// src/settings/settings.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -34,10 +33,6 @@ export class SettingsService {
     updateSettingDto: UpdateSettingDto,
   ): Promise<SettingDocument> {
     const flattenedUpdate: Record<string, any> = {};
-
-    // --- START OF THE DEFINITIVE, EXPLICIT FIX ---
-    // This approach avoids all loops and dynamic property access,
-    // which guarantees it will pass the strict linter rules.
 
     if (updateSettingDto.notificationPreferences) {
       const prefs = updateSettingDto.notificationPreferences;
@@ -108,11 +103,25 @@ export class SettingsService {
           prefs.breakReminderIntervalMinutes;
     }
 
-    // Handle any top-level properties
+    // --- START OF FIX: This block is now complete ---
+    if (updateSettingDto.dateTimePreferences) {
+      const prefs = updateSettingDto.dateTimePreferences;
+      if (prefs.shortDateFormat !== undefined)
+        flattenedUpdate['dateTimePreferences.shortDateFormat'] =
+          prefs.shortDateFormat;
+      // ADDED: Handle longDateFormat
+      if (prefs.longDateFormat !== undefined)
+        flattenedUpdate['dateTimePreferences.longDateFormat'] =
+          prefs.longDateFormat;
+      // ADDED: Handle timeFormat
+      if (prefs.timeFormat !== undefined)
+        flattenedUpdate['dateTimePreferences.timeFormat'] = prefs.timeFormat;
+    }
+    // --- END OF FIX ---
+
     if (updateSettingDto.isDefault !== undefined) {
       flattenedUpdate.isDefault = updateSettingDto.isDefault;
     }
-    // --- END OF THE DEFINITIVE FIX ---
 
     const updatedSettings = await this.settingModel
       .findOneAndUpdate(

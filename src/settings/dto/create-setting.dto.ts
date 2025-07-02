@@ -1,4 +1,3 @@
-// src/settings/dto/create-setting.dto.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
@@ -9,22 +8,46 @@ import {
   IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import {
+  ShortDateFormatKey,
+  // --- ADDED: Import new enums ---
+  LongDateFormatKey,
+  TimeFormatKey,
+} from '../schemas/setting.schema';
+
+export class DateTimePreferencesDto {
+  @ApiProperty({
+    example: ShortDateFormatKey.MDY_LongMonth,
+    enum: ShortDateFormatKey,
+  })
+  @IsEnum(ShortDateFormatKey)
+  shortDateFormat: ShortDateFormatKey;
+
+  // --- ADDED: New properties for validation ---
+  @ApiProperty({ example: LongDateFormatKey.Full, enum: LongDateFormatKey })
+  @IsEnum(LongDateFormatKey)
+  longDateFormat: LongDateFormatKey;
+
+  @ApiProperty({ example: TimeFormatKey.TwelveHour, enum: TimeFormatKey })
+  @IsEnum(TimeFormatKey)
+  timeFormat: TimeFormatKey;
+  // --- END ADDED ---
+}
+
+// ... (rest of the DTO file is unchanged) ...
 
 export class NotificationPreferencesDto {
   @ApiProperty({ example: true })
   @IsBoolean()
   emailNotifications: boolean;
 
-  @ApiProperty({ example: false })
-  @IsBoolean()
-  pushNotifications: boolean;
-
-  // --- THIS IS THE FIX ---
-  // This property was missing, causing the type errors.
   @ApiProperty({ example: true })
   @IsBoolean()
   allowAnnouncementEmails: boolean;
-  // --- END OF FIX ---
+
+  @ApiProperty({ example: false })
+  @IsBoolean()
+  pushNotifications: boolean;
 }
 
 export class AccountSettingsPreferencesDto {
@@ -145,4 +168,10 @@ export class CreateSettingDto {
   @ValidateNested()
   @Type(() => WellbeingPreferencesDto)
   wellbeingPreferences?: WellbeingPreferencesDto;
+
+  @ApiPropertyOptional({ type: DateTimePreferencesDto })
+  @IsObject()
+  @ValidateNested()
+  @Type(() => DateTimePreferencesDto)
+  dateTimePreferences?: DateTimePreferencesDto;
 }
