@@ -19,11 +19,24 @@ import {
   UserActivitySummaryDto,
 } from './dto/activity-summery.dto';
 
+// --- START OF FIX: Define new interfaces for our navigation stats ---
+export interface MostVisitedPage {
+  url: string;
+  count: number;
+}
+
+export interface NavigationStats {
+  lastVisitedUrl?: string | null;
+  mostVisitedPages: MostVisitedPage[];
+}
+// --- END OF FIX ---
+
 interface LogPayload {
   userId: Types.ObjectId;
   action: ActivityAction;
   targetId?: Types.ObjectId | string;
   durationMs?: number;
+  details?: { url?: string }; // Allow details to be passed
 }
 
 interface AggregationGroupResult {
@@ -94,6 +107,21 @@ export class ActivityService {
   ) {}
 
   async logEvent(payload: LogPayload): Promise<void> {
+    // --- START OF FIX: Add throttling for PAGE_VIEW actions ---
+    if (payload.action === ActivityAction.PAGE_VIEW) {
+      // Throttle page views to one per user per 15 seconds to avoid spamming the log
+      const cacheKey = `${payload.userId.toString()}:${payload.action}`;
+      const now = Date.now();
+      if (
+        this.throttleCache.has(cacheKey) &&
+        now < (this.throttleCache.get(cacheKey) ?? 0)
+      ) {
+        return;
+      }
+      this.throttleCache.set(cacheKey, now + 15000); // 15 second throttle
+    }
+    // --- END OF FIX ---
+
     if (payload.action === ActivityAction.USER_PROFILE_VIEW) {
       if (!payload.targetId) return;
       const cacheKey = `${payload.userId.toString()}:${payload.action}:${payload.targetId.toString()}`;
@@ -123,6 +151,66 @@ export class ActivityService {
       throw new InternalServerErrorException('Could not log user activity.');
     }
   }
+
+  // --- START OF FIX: New method to get navigation stats ---
+  async getNavigationStats(userId: string): Promise<NavigationStats> {
+    const userObjectId = new Types.ObjectId(userId);
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Run two queries in parallel for efficiency
+    const [lastVisitedLog, mostVisitedPages] = await Promise.all([
+      // Query 1: Get the single most recent PAGE_VIEW log
+      this.activityLogModel
+        .findOne({
+          userId: userObjectId,
+          action: ActivityAction.PAGE_VIEW,
+        })
+        .sort({ createdAt: -1 })
+        .limit(1)
+        .select('details.url')
+        .lean()
+        .exec(),
+
+      // Query 2: Aggregate to find the top 5 most visited pages in the last 30 days
+      this.activityLogModel.aggregate<MostVisitedPage>([
+        {
+          $match: {
+            userId: userObjectId,
+            action: ActivityAction.PAGE_VIEW,
+            createdAt: { $gte: thirtyDaysAgo },
+          },
+        },
+        {
+          $group: {
+            _id: '$details.url', // Group by the URL
+            count: { $sum: 1 }, // Count occurrences
+          },
+        },
+        {
+          $sort: {
+            count: -1, // Sort by the highest count
+          },
+        },
+        {
+          $limit: 5, // Limit to the top 5
+        },
+        {
+          $project: {
+            _id: 0,
+            url: '$_id', // Rename _id to url
+            count: 1,
+          },
+        },
+      ]),
+    ]);
+
+    return {
+      lastVisitedUrl: lastVisitedLog?.details?.url ?? null,
+      mostVisitedPages: mostVisitedPages,
+    };
+  }
+  // --- END OF FIX ---
 
   async getUserActivitySummary(
     userId: string,
@@ -288,7 +376,6 @@ export class ActivityService {
     return results;
   }
 
-  // --- NEW METHOD FOR USER-SPECIFIC CHART DATA ---
   async getUserActivityChartData(
     userId: string,
     period: AnalyticsPeriod = AnalyticsPeriod.SEVEN_DAYS,

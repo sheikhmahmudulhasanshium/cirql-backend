@@ -1,4 +1,13 @@
-import { Controller, Get, Post, UseGuards, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  UseGuards,
+  Body,
+  Query,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiTags,
@@ -7,7 +16,7 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { UserDocument } from '../users/schemas/user.schema';
-import { ActivityService } from './activity.service';
+import { ActivityService, NavigationStats } from './activity.service';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
@@ -15,11 +24,10 @@ import { ActivityAction } from './schemas/activity-log.schema';
 import { AdminAnalyticsQueryDto } from './dto/admin-analytics-query.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { GrowthChartDataDto, HeartbeatDto } from './dto/activity-summery.dto';
-
-// --- FIX: This interface is no longer needed because @CurrentUser is used ---
-// interface AuthenticatedRequest {
-//   user: UserDocument;
-// }
+import { LogPageViewDto } from './dto/log-page-view.dto';
+// --- START OF FIX: Import the new DTO class ---
+import { NavigationStatsDto } from './dto/navigation-stats.dto';
+// --- END OF FIX ---
 
 @ApiTags('Activity')
 @ApiBearerAuth()
@@ -27,6 +35,41 @@ import { GrowthChartDataDto, HeartbeatDto } from './dto/activity-summery.dto';
 @Controller('activity')
 export class ActivityController {
   constructor(private readonly activityService: ActivityService) {}
+
+  @Post('page-view')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Log a user page view event' })
+  async logPageView(
+    @CurrentUser() user: UserDocument,
+    @Body() logPageViewDto: LogPageViewDto,
+  ) {
+    if (
+      logPageViewDto.url.startsWith('/_next') ||
+      logPageViewDto.url.startsWith('/api')
+    ) {
+      return { success: true, message: 'Ignored internal route.' };
+    }
+
+    await this.activityService.logEvent({
+      userId: user._id,
+      action: ActivityAction.PAGE_VIEW,
+      details: { url: logPageViewDto.url },
+    });
+    return { success: true, message: 'Page view acknowledged.' };
+  }
+
+  @Get('me/navigation-stats')
+  @ApiOperation({
+    summary: "Get the user's navigation stats (last visited and most visited)",
+  })
+  // --- START OF FIX: Use the DTO class instead of the interface ---
+  @ApiResponse({ status: 200, type: NavigationStatsDto })
+  // --- END OF FIX ---
+  getMyNavigationStats(
+    @CurrentUser() user: UserDocument,
+  ): Promise<NavigationStats> {
+    return this.activityService.getNavigationStats(user._id.toString());
+  }
 
   @Get('me')
   @ApiOperation({

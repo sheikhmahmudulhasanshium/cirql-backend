@@ -1,22 +1,21 @@
-export class Activity {}
-// src/activity/schemas/activity-log.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-// ... imports ...
 export type ActivityLogDocument = ActivityLog & Document;
 
+// --- START OF FIX: Add PAGE_VIEW to the enum ---
 export enum ActivityAction {
-  // --- NEW: Add a registration action ---
   USER_REGISTER = 'USER_REGISTER',
   USER_LOGIN = 'USER_LOGIN',
   USER_PROFILE_VIEW = 'USER_PROFILE_VIEW',
   TICKET_MESSAGE_SENT = 'TICKET_MESSAGE_SENT',
   USER_HEARTBEAT = 'USER_HEARTBEAT',
+  PAGE_VIEW = 'PAGE_VIEW', // New action for logging navigation
 }
+// --- END OF FIX ---
 
+// --- START OF FIX: Add a flexible 'details' field ---
 @Schema({
-  // This is the "crash-proof" feature. A fixed-size collection.
   capped: { size: 20 * 1024 * 1024, max: 2000000 }, // 20 MB, max 2M documents
   timestamps: { createdAt: true, updatedAt: false },
   versionKey: false,
@@ -29,14 +28,22 @@ export class ActivityLog {
   action: ActivityAction;
 
   @Prop({ type: Types.ObjectId, required: false, index: true })
-  targetId?: Types.ObjectId; // e.g., the user profile being viewed
+  targetId?: Types.ObjectId;
 
-  // For USER_HEARTBEAT, this can store how long the session was active
   @Prop({ type: Number, required: false })
   durationMs?: number;
+
+  // This flexible object can store different details for different actions.
+  // For PAGE_VIEW, it will be { url: string }.
+  @Prop({ type: Object, required: false })
+  details?: {
+    url?: string;
+    // We can add more properties here in the future without schema changes
+  };
 
   @Prop()
   createdAt: Date;
 }
+// --- END OF FIX ---
 
 export const ActivityLogSchema = SchemaFactory.createForClass(ActivityLog);
