@@ -6,10 +6,9 @@ import {
   BadRequestException,
   UnauthorizedException,
   ForbiddenException,
-  // UnprocessableEntityException is not used in the original code, so we remove it to fix the lint error.
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types, Document } from 'mongoose'; // Import Document
+import { Model, Types } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -23,7 +22,6 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/schemas/audit-log.schema';
 import {
   PasswordResetToken,
-  // --- FIX: This import now works because we exported the type from the schema file ---
   PasswordResetTokenDocument,
 } from './schemas/password-reset-token.schema';
 import { LoginDto } from './dto/login.dto';
@@ -37,12 +35,19 @@ interface Jwt2faPartialPayload {
   isTwoFactorAuthenticationComplete: false;
 }
 
+// --- START OF FIX: Add all necessary user fields to the JWT payload type ---
 interface JwtAccessPayload {
-  email: string | undefined;
   sub: string;
+  email: string | undefined;
   roles: Role[];
+  firstName: string | undefined;
+  lastName: string | undefined;
+  picture: string | undefined;
+  is2FAEnabled: boolean;
+  accountStatus: string;
   isTwoFactorAuthenticationComplete: true;
 }
+// --- END OF FIX ---
 
 export interface SanitizedUser {
   _id: Types.ObjectId;
@@ -252,12 +257,19 @@ export class AuthService {
   }
 
   getFullAccessToken(user: UserDocument): AuthTokenResponse {
+    // --- START OF FIX: Populate the payload with all necessary fields ---
     const payload: JwtAccessPayload = {
-      email: user.email,
       sub: user._id.toString(),
+      email: user.email,
       roles: user.roles,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      picture: user.picture,
+      is2FAEnabled: user.is2FAEnabled,
+      accountStatus: user.accountStatus,
       isTwoFactorAuthenticationComplete: true,
     };
+    // --- END OF FIX ---
     const accessToken = this.jwtService.sign(payload);
 
     return { accessToken, user: this.sanitizeUser(user) };
@@ -312,7 +324,6 @@ export class AuthService {
     const potentialTokens = await this.passwordResetTokenModel.find({
       expiresAt: { $gt: new Date() },
     });
-    // --- FIX: All errors below are now gone because PasswordResetTokenDocument is a valid type ---
     let validTokenDoc: PasswordResetTokenDocument | null = null;
     for (const doc of potentialTokens) {
       if (await bcrypt.compare(rawToken, doc.token)) {

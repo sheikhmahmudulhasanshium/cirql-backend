@@ -1,4 +1,3 @@
-// src/email/email.service.ts
 import {
   Injectable,
   Logger,
@@ -104,9 +103,11 @@ export class EmailService {
     return address.address;
   }
 
-  private async sendMail(
+  // --- START OF FIX: Changed from private to public ---
+  public async sendMail(
     mailOptions: nodemailer.SendMailOptions,
   ): Promise<void> {
+    // --- END OF FIX ---
     const toAddress = this.safeAddressToString(mailOptions.to);
     try {
       await this.transporter.sendMail(mailOptions);
@@ -115,6 +116,8 @@ export class EmailService {
       const stack =
         error instanceof Error ? error.stack : 'No stack trace available';
       this.logger.error(`Failed to send email to ${toAddress}`, stack);
+      // Do not re-throw here to prevent the entire user-facing operation from failing
+      // if an email fails to send. Logging the error is sufficient.
     }
   }
 
@@ -216,7 +219,7 @@ export class EmailService {
   async sendAdminTicketNotificationEmail(
     data: AdminTicketNotificationData,
   ): Promise<void> {
-    const ticketUrl = `${this.frontendUrl}/admin/support/${data.ticketId}`;
+    const ticketUrl = `${this.frontendUrl}/contacts/${data.ticketId}`;
     const mailOptions: nodemailer.SendMailOptions = {
       from: `"CiRQL Admin Notifier" <${this.adminEmail}>`,
       to: this.adminEmail,

@@ -1,4 +1,3 @@
-// src/support/support.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -26,10 +25,12 @@ import { CreatePublicTicketDto } from './dto/create-public-ticket.dto';
 import { CreateAppealDto } from './dto/create-appeal.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/schemas/notification.schema';
+// The type from 'nodemailer' is still useful for structuring the mail options
+import { SendMailOptions } from 'nodemailer';
 
-// --- START: MODIFICATION ---
-// Define a clear, reusable type for the shape of the user object
-// after it has been populated by a .lean() query.
+// Helper function for a small delay between sending emails
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 type LeanPopulatedUser = {
   _id: Types.ObjectId;
   firstName?: string;
@@ -37,7 +38,6 @@ type LeanPopulatedUser = {
   email?: string;
   picture?: string;
 };
-// --- END: MODIFICATION ---
 
 export interface TicketSummary {
   _id: Types.ObjectId;
@@ -72,7 +72,7 @@ export class SupportService {
   ): Promise<void> {
     const adminUsers = await this.userModel
       .find({ roles: { $in: [Role.Admin, Role.Owner] } })
-      .select('_id')
+      .select('_id email firstName')
       .lean()
       .exec();
 
@@ -87,12 +87,76 @@ export class SupportService {
     );
     await Promise.all(notificationPromises);
 
-    await this.emailService.sendAdminTicketNotificationEmail({
-      ticketId: ticket._id.toString(),
-      ticketSubject: ticket.subject,
-      submittedBy: submittedBy,
-      preview: initialMessageContent.substring(0, 150) + '...',
-    });
+    const ticketUrl = `${this.emailService.getFrontendUrl()}/contacts/${ticket._id.toString()}`;
+    const emailSubject = `[New Ticket] ${ticket.subject}`;
+
+    const emailTextBody = `
+      New Support Ticket Alert
+
+      A new support ticket requires your attention.
+      Submitted by: ${submittedBy}
+
+      Preview:
+      "${initialMessageContent.substring(0, 150)}..."
+
+      You can view the full ticket and reply by visiting:
+      ${ticketUrl}
+    `;
+
+    const emailHtmlBody = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+        <h2 style="color: #1A1A2E;">New Support Ticket Alert</h2>
+        <p>A new support ticket requires your attention.</p>
+        <p><strong>Submitted by:</strong> ${submittedBy}</p>
+        <hr style="border:none; border-top:1px solid #eee">
+        <p><strong>Preview:</strong></p>
+        <blockquote style="border-left: 4px solid #ccc; padding-left: 15px; margin: 0; font-style: italic;">
+          ${initialMessageContent.substring(0, 150).replace(/\n/g, '<br>')}...
+        </blockquote>
+        <hr style="border:none; border-top:1px solid #eee">
+        <p>You can view the full ticket and reply by clicking the button below:</p>
+        <p style="text-align: center; margin: 30px 0;">
+          <a href="${ticketUrl}" style="background-color: #42F2A1; color: #1A1A2E; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">View Ticket in Admin Panel</a>
+        </p>
+      </div>
+    `;
+
+    for (const admin of adminUsers) {
+      if (!admin.email) {
+        this.logger.warn(
+          `Admin user ${admin._id.toString()} has no email, skipping notification.`,
+        );
+        continue;
+      }
+
+      const fromAddress = this.emailService.getAdminEmail();
+      const fromDomain = fromAddress.split('@')[1] || 'localhost';
+
+      const mailOptions: SendMailOptions = {
+        from: `"CiRQL Admin Notifier" <${fromAddress}>`,
+        to: admin.email,
+        subject: emailSubject,
+        html: emailHtmlBody,
+        text: emailTextBody,
+        headers: {
+          'List-Unsubscribe': `<${this.emailService.getFrontendUrl()}/profile/settings>`,
+          'Message-ID': `<${ticket._id.toString()}.${Date.now()}@${fromDomain}>`,
+        },
+      };
+
+      try {
+        // --- START OF FIX: Removed the unsafe '(as any)' cast ---
+        await this.emailService.sendMail(mailOptions);
+        // --- END OF FIX ---
+      } catch (error) {
+        this.logger.error(
+          `Failed to send new ticket notification email to admin: ${admin.email}`,
+          error,
+        );
+      }
+
+      await sleep(500);
+    }
   }
 
   async addMessage(
@@ -394,15 +458,9 @@ export class SupportService {
       .lean()
       .exec();
 
-    // The mapping here is simplified for consistency.
     return tickets.map((ticket) => ({
       _id: ticket._id,
-      // --- START: MODIFICATION ---
-      // This is safe because we didn't populate 'user' in this query.
-      // It remains a Types.ObjectId, which fits the TicketSummary interface.
-      // We explicitly cast to unknown first, then to the target type to satisfy TS.
       user: ticket.user as unknown as LeanPopulatedUser,
-      // --- END: MODIFICATION ---
       guestName: ticket.guestName,
       guestEmail: ticket.guestEmail,
       category: ticket.category,
@@ -429,13 +487,7 @@ export class SupportService {
 
     return tickets.map((ticket) => ({
       _id: ticket._id,
-      // --- START: MODIFICATION ---
-      // By casting to 'unknown' first, we signal to TypeScript that we are
-      // intentionally changing the type from what it inferred. Then we cast
-      // to our specific 'LeanPopulatedUser' type, which is safer than 'any'.
-      // This satisfies the strict linter rule.
       user: ticket.user as unknown as LeanPopulatedUser,
-      // --- END: MODIFICATION ---
       guestName: ticket.guestName,
       guestEmail: ticket.guestEmail,
       category: ticket.category,
