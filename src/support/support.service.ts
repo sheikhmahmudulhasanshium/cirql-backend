@@ -82,7 +82,7 @@ export class SupportService {
         title: `New Ticket: ${ticket.subject}`,
         message: `A new support ticket has been submitted by ${submittedBy}.`,
         type: NotificationType.TICKET_ADMIN_ALERT,
-        linkUrl: `/admin/support/${ticket._id.toString()}`,
+        linkUrl: `/contacts/${ticket._id.toString()}`,
       }),
     );
     await Promise.all(notificationPromises);
