@@ -1,3 +1,4 @@
+// src/support/support.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -5,7 +6,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+// --- FIX: Import SortOrder and FilterQuery from Mongoose ---
+import { Model, Types, FilterQuery, SortOrder } from 'mongoose';
 import {
   Ticket,
   TicketDocument,
@@ -25,10 +27,10 @@ import { CreatePublicTicketDto } from './dto/create-public-ticket.dto';
 import { CreateAppealDto } from './dto/create-appeal.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/schemas/notification.schema';
-// The type from 'nodemailer' is still useful for structuring the mail options
 import { SendMailOptions } from 'nodemailer';
+import { EditMessageDto } from './dto/edit-message.dto';
+import { AdminTicketsQueryDto } from './dto/admin-tickets-query.dto';
 
-// Helper function for a small delay between sending emails
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 type LeanPopulatedUser = {
@@ -47,6 +49,7 @@ export interface TicketSummary {
   category: TicketCategory;
   subject: string;
   status: TicketStatus;
+  isLocked: boolean;
   createdAt: Date;
   updatedAt: Date;
   hasUnseenMessages: boolean;
@@ -145,9 +148,7 @@ export class SupportService {
       };
 
       try {
-        // --- START OF FIX: Removed the unsafe '(as any)' cast ---
         await this.emailService.sendMail(mailOptions);
-        // --- END OF FIX ---
       } catch (error) {
         this.logger.error(
           `Failed to send new ticket notification email to admin: ${admin.email}`,
@@ -169,6 +170,11 @@ export class SupportService {
       .populate<{ user: UserDocument }>('user', 'email firstName lastName');
 
     if (!ticket) throw new NotFoundException('Ticket not found.');
+    if (ticket.isLocked) {
+      throw new ForbiddenException(
+        'This ticket is locked and cannot be replied to.',
+      );
+    }
     if (ticket.status === TicketStatus.CLOSED) {
       throw new ForbiddenException(
         'This ticket is closed and cannot be replied to.',
@@ -237,6 +243,37 @@ export class SupportService {
     return this.getTicketById(ticketId, user);
   }
 
+  async editMessage(
+    messageId: string,
+    editMessageDto: EditMessageDto,
+    user: UserDocument,
+  ): Promise<ActualMessageDocument> {
+    const message = await this.messageModel.findById(messageId);
+    if (!message) {
+      throw new NotFoundException('Message not found.');
+    }
+
+    if (!message.sender.equals(user._id)) {
+      throw new ForbiddenException('You can only edit your own messages.');
+    }
+
+    const ticket = await this.ticketModel.findById(message.ticketId);
+    if (!ticket) {
+      throw new NotFoundException(
+        'The ticket associated with this message could not be found.',
+      );
+    }
+    if (ticket.isLocked || ticket.status === TicketStatus.CLOSED) {
+      throw new ForbiddenException(
+        'Cannot edit messages in a locked or closed ticket.',
+      );
+    }
+
+    message.content = editMessageDto.content;
+    message.editedAt = new Date();
+    return message.save();
+  }
+
   async closeTicket(
     ticketId: string,
     adminUser: UserDocument,
@@ -266,6 +303,20 @@ export class SupportService {
       });
     }
     return ticket;
+  }
+
+  async lockTicket(ticketId: string): Promise<TicketDocument> {
+    const ticket = await this.ticketModel.findById(ticketId);
+    if (!ticket) throw new NotFoundException('Ticket not found.');
+    ticket.isLocked = true;
+    return ticket.save();
+  }
+
+  async unlockTicket(ticketId: string): Promise<TicketDocument> {
+    const ticket = await this.ticketModel.findById(ticketId);
+    if (!ticket) throw new NotFoundException('Ticket not found.');
+    ticket.isLocked = false;
+    return ticket.save();
   }
 
   async getTicketById(
@@ -466,6 +517,7 @@ export class SupportService {
       category: ticket.category,
       subject: ticket.subject,
       status: ticket.status,
+      isLocked: ticket.isLocked,
       createdAt: ticket.createdAt,
       updatedAt: ticket.updatedAt,
       hasUnseenMessages:
@@ -476,11 +528,28 @@ export class SupportService {
     }));
   }
 
-  async getAllTicketsForAdmin(): Promise<TicketSummary[]> {
+  async getAllTicketsForAdmin(
+    query: AdminTicketsQueryDto,
+  ): Promise<TicketSummary[]> {
+    const filter: FilterQuery<TicketDocument> = {};
+
+    if (query.status) {
+      filter.status = query.status;
+    }
+    if (query.isLocked !== undefined) {
+      filter.isLocked = query.isLocked;
+    }
+
+    const [field, order] = (query.sortBy || 'updatedAt:desc').split(':');
+    // --- FIX: Add explicit type to satisfy TypeScript ---
+    const sortOption: { [key: string]: SortOrder } = {
+      [field]: order === 'desc' ? -1 : 1,
+    };
+
     const tickets = await this.ticketModel
-      .find()
+      .find(filter)
+      .sort(sortOption) // Now correctly typed
       .populate('user', '_id firstName lastName email picture')
-      .sort({ updatedAt: -1 })
       .select('-messages')
       .lean()
       .exec();
@@ -493,6 +562,7 @@ export class SupportService {
       category: ticket.category,
       subject: ticket.subject,
       status: ticket.status,
+      isLocked: ticket.isLocked,
       createdAt: ticket.createdAt,
       updatedAt: ticket.updatedAt,
       hasUnseenMessages:

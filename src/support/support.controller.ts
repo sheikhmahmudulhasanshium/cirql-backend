@@ -1,3 +1,4 @@
+// src/support/support.controller.ts
 import {
   Controller,
   Post,
@@ -9,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
   Patch,
+  Query,
 } from '@nestjs/common';
 import { SupportService } from './support.service';
 import { CreateSupportDto } from './dto/create-support.dto';
@@ -24,6 +26,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { BannedUserGuard } from '../common/guards/banned-user.guard';
 import { CreateAppealDto } from './dto/create-appeal.dto';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
+import { EditMessageDto } from './dto/edit-message.dto';
+import { AdminTicketsQueryDto } from './dto/admin-tickets-query.dto';
 
 @Controller('support')
 export class SupportController {
@@ -57,6 +61,16 @@ export class SupportController {
     return this.supportService.createTicket(createTicketDto, user);
   }
 
+  @Patch('tickets/messages/:messageId')
+  @UseGuards(AuthGuard('jwt'))
+  editMessage(
+    @Param('messageId', ParseObjectIdPipe) messageId: string,
+    @Body(new ValidationPipe()) editMessageDto: EditMessageDto,
+    @CurrentUser() user: UserDocument,
+  ) {
+    return this.supportService.editMessage(messageId, editMessageDto, user);
+  }
+
   @Post('tickets/:id/messages')
   @UseGuards(AuthGuard('jwt'), ThrottlerGuard)
   addMessage(
@@ -80,10 +94,7 @@ export class SupportController {
   @Get('tickets')
   @UseGuards(AuthGuard('jwt'))
   getTicketsForUser(@CurrentUser() user: UserDocument) {
-    // --- THIS IS THE FIX ---
-    // Pass the ObjectId directly, not a string version of it.
     return this.supportService.getTicketsForUser(user._id);
-    // --- END OF FIX ---
   }
 
   @Get('tickets/:id')
@@ -98,8 +109,8 @@ export class SupportController {
   @Get('admin/tickets')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.Admin, Role.Owner)
-  getAllTicketsForAdmin() {
-    return this.supportService.getAllTicketsForAdmin();
+  getAllTicketsForAdmin(@Query() query: AdminTicketsQueryDto) {
+    return this.supportService.getAllTicketsForAdmin(query);
   }
 
   @Patch('tickets/:id/close')
@@ -111,5 +122,21 @@ export class SupportController {
     @CurrentUser() user: UserDocument,
   ) {
     return this.supportService.closeTicket(id, user);
+  }
+
+  @Patch('tickets/:id/lock')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.Admin, Role.Owner)
+  @HttpCode(HttpStatus.OK)
+  lockTicket(@Param('id', ParseObjectIdPipe) id: string) {
+    return this.supportService.lockTicket(id);
+  }
+
+  @Patch('tickets/:id/unlock')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.Admin, Role.Owner)
+  @HttpCode(HttpStatus.OK)
+  unlockTicket(@Param('id', ParseObjectIdPipe) id: string) {
+    return this.supportService.unlockTicket(id);
   }
 }

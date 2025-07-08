@@ -1,3 +1,4 @@
+// src/auth/auth.service.ts
 import {
   Injectable,
   InternalServerErrorException,
@@ -35,7 +36,6 @@ interface Jwt2faPartialPayload {
   isTwoFactorAuthenticationComplete: false;
 }
 
-// --- START OF FIX: Add all necessary user fields to the JWT payload type ---
 interface JwtAccessPayload {
   sub: string;
   email: string | undefined;
@@ -47,7 +47,6 @@ interface JwtAccessPayload {
   accountStatus: string;
   isTwoFactorAuthenticationComplete: true;
 }
-// --- END OF FIX ---
 
 export interface SanitizedUser {
   _id: Types.ObjectId;
@@ -244,7 +243,15 @@ export class AuthService {
   public async generateAndSend2faCode(user: UserDocument): Promise<void> {
     if (!user.email) return;
 
-    const code = crypto.randomInt(100000, 999999).toString();
+    // --- MODIFICATION: Generate 6-character alphanumeric code ---
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    const randomBytes = crypto.randomBytes(6);
+    for (let i = 0; i < 6; i++) {
+      code += characters.charAt(randomBytes[i] % characters.length);
+    }
+    // --- END MODIFICATION ---
+
     const hashedCode = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
 
@@ -257,7 +264,6 @@ export class AuthService {
   }
 
   getFullAccessToken(user: UserDocument): AuthTokenResponse {
-    // --- START OF FIX: Populate the payload with all necessary fields ---
     const payload: JwtAccessPayload = {
       sub: user._id.toString(),
       email: user.email,
@@ -269,7 +275,6 @@ export class AuthService {
       accountStatus: user.accountStatus,
       isTwoFactorAuthenticationComplete: true,
     };
-    // --- END OF FIX ---
     const accessToken = this.jwtService.sign(payload);
 
     return { accessToken, user: this.sanitizeUser(user) };

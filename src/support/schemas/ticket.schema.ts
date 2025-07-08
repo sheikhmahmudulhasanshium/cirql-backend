@@ -46,6 +46,9 @@ export class Ticket extends Document {
   })
   status: TicketStatus;
 
+  @Prop({ type: Boolean, default: false })
+  isLocked: boolean;
+
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Message' }] })
   messages: Types.ObjectId[];
 
