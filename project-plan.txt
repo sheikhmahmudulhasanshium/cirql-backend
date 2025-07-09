@@ -89,14 +89,14 @@ Frontend's finalRedirectUri (in state) is dynamic and tells the backend where th
 Backend's ALLOWED_FRONTEND_ORIGINS acts as a security whitelist for that final JWT redirect, ensuring the backend only sends tokens to trusted frontend origins, regardless of what the state parameter claims. This list should contain both your production frontend origin and http://localhost:3000 in both backend environments to allow flexible testing.
 This setup achieves your goal: authentication can work "no matter what the environment is" (local FE to local BE, local FE to prod BE, prod FE to prod BE) because the system is designed to handle these different origin combinations through configuration and the dynamic state parameter.
 cirql-backend/
-├── .env                    # (Not provided, assumed)
-├── .eslintrc.mjs           # Updated config file you provided
-├── .gitignore              # (Not provided, assumed)
-├── .prettierrc             # (Not provided, assumed)
-├── nest-cli.json           # (Not provided, assumed)
-├── package.json            # (Not provided, assumed)
-├── tsconfig.build.json     # (Not provided, assumed)
-├── tsconfig.json           # Your tsconfig file
+├── .env
+├── .eslintrc.mjs
+├── .gitignore
+├── .prettierrc
+├── nest-cli.json
+├── package.json
+├── tsconfig.build.json
+├── tsconfig.json
 ├── src/
 │   ├── main.ts
 │   ├── app.controller.ts
@@ -204,6 +204,13 @@ cirql-backend/
 │   │   ├── support.controller.ts
 │   │   ├── support.module.ts
 │   │   └── support.service.ts
+│   ├── upload/
+│   │   ├── schemas/
+│   │   │   └── media.schema.ts
+│   │   ├── attachment.service.ts
+│   │   ├── media.controller.ts
+│   │   ├── media.service.ts
+│   │   └── upload.module.ts
 │   └── users/
 │       ├── dto/
 │       │   ├── ban-user.dto.ts
@@ -215,10 +222,10 @@ cirql-backend/
 │       ├── users.controller.ts
 │       ├── users.module.ts
 │       └── users.service.ts
-├── dist/                   # (Output directory, assumed)
-├── node_modules/           # (Dependencies, assumed)
-├── public/                 # (Static assets, assumed)
-└── test/                   # (Tests, assumed)
+├── dist/
+├── node_modules/
+├── public/
+└── test/
 
         {
   "title": "CiRQL is Born! 🎉",

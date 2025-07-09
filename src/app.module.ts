@@ -21,6 +21,7 @@ import { EmailModule } from './email/email.module';
 import { SupportModule } from './support/support.module';
 import { NotificationsModule } from './notifications/notifications.module'; // Import NotificationsModule
 import { ActivityModule } from './activity/activity.module';
+import { UploadModule } from './upload/upload.module';
 
 interface EnvironmentVariables {
   PORT: number;
@@ -102,6 +103,7 @@ const envValidationSchema = Joi.object<EnvironmentVariables, true>({
     SupportModule,
     NotificationsModule,
     ActivityModule,
+    UploadModule, // --- ADD THIS LINE ---
   ],
   controllers: [AppController],
   providers: [
