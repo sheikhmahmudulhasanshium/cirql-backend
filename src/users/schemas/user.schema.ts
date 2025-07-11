@@ -1,3 +1,5 @@
+// src/users/schemas/user.schema.ts
+
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -18,8 +20,8 @@ export class User {
   @ApiPropertyOptional({ example: 'test@example.com' })
   @Prop({
     unique: true,
-    required: false, // Not required for Google-only signups
-    sparse: true, // Allows multiple null values for email
+    required: false,
+    sparse: true,
     lowercase: true,
     trim: true,
   })
@@ -75,6 +77,13 @@ export class User {
   @Prop({ type: [Date], default: [], select: false })
   loginHistory: Date[];
 
+  @ApiPropertyOptional({
+    description:
+      'Timestamp after which all previously issued tokens are considered invalid.',
+  })
+  @Prop({ type: Date, required: false })
+  tokensValidFrom?: Date;
+
   @ApiPropertyOptional({ type: Date, readOnly: true })
   createdAt?: Date;
 
@@ -84,7 +93,6 @@ export class User {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
-// FIX: Use .toString() which is a safer alias for .toHexString() and universally typed.
 UserSchema.virtual('id').get(function (this: UserDocument) {
   return this._id.toString();
 });

@@ -22,6 +22,7 @@ import { SupportModule } from './support/support.module';
 import { NotificationsModule } from './notifications/notifications.module'; // Import NotificationsModule
 import { ActivityModule } from './activity/activity.module';
 import { UploadModule } from './upload/upload.module';
+import { RiscModule } from './risc/risc.module'; // <-- IMPORT THE NEW MODULE
 
 interface EnvironmentVariables {
   PORT: number;
@@ -35,6 +36,7 @@ interface EnvironmentVariables {
   GOOGLE_CLIENT_SECRET: string;
   GOOGLE_CALLBACK_TO_BACKEND_URL: string;
   ALLOWED_FRONTEND_ORIGINS: string;
+  GOOGLE_PROJECT_ID: string; // <-- ADD THIS LINE
 }
 
 const envValidationSchema = Joi.object<EnvironmentVariables, true>({
@@ -55,6 +57,7 @@ const envValidationSchema = Joi.object<EnvironmentVariables, true>({
     .uri({ scheme: ['http', 'https'] })
     .required(),
   ALLOWED_FRONTEND_ORIGINS: Joi.string().required(),
+  GOOGLE_PROJECT_ID: Joi.string().required(), // <-- ADD THIS LINE
 });
 
 @Module({
@@ -104,6 +107,7 @@ const envValidationSchema = Joi.object<EnvironmentVariables, true>({
     NotificationsModule,
     ActivityModule,
     UploadModule, // --- ADD THIS LINE ---
+    RiscModule, // <-- ADD THE NEW MODULE HERE
   ],
   controllers: [AppController],
   providers: [
