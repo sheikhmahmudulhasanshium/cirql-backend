@@ -13,12 +13,14 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    return this.settingModel.create({
+    // FIX: Correctly await the promise returned by .create()
+    return await this.settingModel.create({
       userId: new Types.ObjectId(userId),
     });
   }
 
   async findOrCreateByUserId(userId: string): Promise<SettingDocument> {
+    // FIX: Use await and .exec() to handle the promise correctly
     const settings = await this.settingModel
       .findOne({ userId: new Types.ObjectId(userId) })
       .exec();
@@ -103,26 +105,23 @@ export class SettingsService {
           prefs.breakReminderIntervalMinutes;
     }
 
-    // --- START OF FIX: This block is now complete ---
     if (updateSettingDto.dateTimePreferences) {
       const prefs = updateSettingDto.dateTimePreferences;
       if (prefs.shortDateFormat !== undefined)
         flattenedUpdate['dateTimePreferences.shortDateFormat'] =
           prefs.shortDateFormat;
-      // ADDED: Handle longDateFormat
       if (prefs.longDateFormat !== undefined)
         flattenedUpdate['dateTimePreferences.longDateFormat'] =
           prefs.longDateFormat;
-      // ADDED: Handle timeFormat
       if (prefs.timeFormat !== undefined)
         flattenedUpdate['dateTimePreferences.timeFormat'] = prefs.timeFormat;
     }
-    // --- END OF FIX ---
 
     if (updateSettingDto.isDefault !== undefined) {
       flattenedUpdate.isDefault = updateSettingDto.isDefault;
     }
 
+    // FIX: Use await and .exec() to handle the promise correctly
     const updatedSettings = await this.settingModel
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
@@ -143,6 +142,7 @@ export class SettingsService {
     userId: string,
     theme: 'light' | 'dark' | 'system',
   ): Promise<SettingDocument> {
+    // FIX: Use await and .exec() to handle the promise correctly
     const updatedSettings = await this.settingModel
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
@@ -162,6 +162,7 @@ export class SettingsService {
   async reset(userId: string): Promise<SettingDocument> {
     const userObjectId = new Types.ObjectId(userId);
 
+    // FIX: Use await and .exec() to handle the promise correctly
     const existingSettings = await this.settingModel
       .findOne({ userId: userObjectId })
       .exec();
@@ -172,6 +173,7 @@ export class SettingsService {
 
     const defaultInstance = new this.settingModel({ userId: userObjectId });
 
+    // FIX: Use await and .exec() to handle the promise correctly
     const resetSettings = await this.settingModel
       .findOneAndReplace(
         { _id: existingSettings._id },

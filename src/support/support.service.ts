@@ -1,4 +1,3 @@
-// src/support/support.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -182,8 +181,11 @@ export class SupportService {
     }
 
     const ticketOwnerId = ticket.user?._id;
+    // --- FIX: Changed .equals() to string comparison ---
     const isOwner =
-      ticket.user && ticketOwnerId && user._id.equals(ticketOwnerId);
+      ticket.user &&
+      ticketOwnerId &&
+      user._id.toString() === ticketOwnerId.toString();
 
     const isAdmin =
       user.roles.includes(Role.Admin) || user.roles.includes(Role.Owner);
@@ -253,7 +255,8 @@ export class SupportService {
       throw new NotFoundException('Message not found.');
     }
 
-    if (!message.sender.equals(user._id)) {
+    // --- FIX: Changed .equals() to string comparison ---
+    if (message.sender.toString() !== user._id.toString()) {
       throw new ForbiddenException('You can only edit your own messages.');
     }
 
@@ -343,10 +346,11 @@ export class SupportService {
       userPerformingAction.roles.includes(Role.Owner);
 
     const ticketOwnerId = ticket.user?._id;
+    // --- FIX: Changed .equals() to string comparison ---
     const isOwner =
       ticket.user &&
       ticketOwnerId &&
-      userPerformingAction._id.equals(ticketOwnerId);
+      userPerformingAction._id.toString() === ticketOwnerId.toString();
 
     if (!isAdmin && !isOwner) {
       throw new ForbiddenException('You cannot view this ticket.');
@@ -368,7 +372,8 @@ export class SupportService {
         ticketFromDb.user instanceof Types.ObjectId
           ? ticketFromDb.user
           : ticketFromDb.user._id;
-      isOwner = user._id.equals(userIdToCompare);
+      // --- FIX: Changed .equals() to string comparison ---
+      isOwner = user._id.toString() === userIdToCompare.toString();
     }
 
     if (!isAdmin && !isOwner) {
