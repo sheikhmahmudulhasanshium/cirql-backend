@@ -1,3 +1,4 @@
+// src/social/groups.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -25,8 +26,8 @@ export class GroupsService {
     createGroupDto: CreateGroupDto,
   ): Promise<GroupDocument> {
     const ownerObjectId = new Types.ObjectId(ownerId);
-    // FIX: Use the static .create() method with a plain object.
-    return this.groupModel.create({
+    // FIX: Use await on the .create() method.
+    return await this.groupModel.create({
       ...createGroupDto,
       owner: ownerObjectId,
       members: [ownerObjectId], // The owner is always the first member
@@ -68,7 +69,7 @@ export class GroupsService {
         'You do not have permission to delete this group.',
       );
     }
-    await this.groupModel.deleteOne({ _id: groupId });
+    await this.groupModel.deleteOne({ _id: groupId }).exec();
   }
 
   async addMember(

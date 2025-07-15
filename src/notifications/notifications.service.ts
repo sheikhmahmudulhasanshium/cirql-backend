@@ -1,3 +1,4 @@
+// src/notifications/notifications.service.ts
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, FilterQuery } from 'mongoose';
@@ -38,10 +39,10 @@ export class NotificationsService {
     this.logger.log(
       `Creating notification for user ${payload.userId.toString()}`,
     );
-    // FIX: Use the explicit new/assign/save pattern
+    // FIX: Awaited the save method
     const notification = new this.notificationModel();
     Object.assign(notification, payload);
-    return notification.save();
+    return await notification.save();
   }
 
   async createGlobalNotification(
@@ -56,6 +57,7 @@ export class NotificationsService {
     }));
 
     if (notificationPayloads.length > 0) {
+      // FIX: Awaited the insertMany method
       await this.notificationModel.insertMany(notificationPayloads, {
         ordered: false,
       });
@@ -123,7 +125,7 @@ export class NotificationsService {
         .limit(limit)
         .lean()
         .exec(),
-      this.notificationModel.countDocuments(filter),
+      this.notificationModel.countDocuments(filter).exec(),
     ]);
 
     return {
@@ -134,10 +136,13 @@ export class NotificationsService {
   }
 
   async getUnreadCount(userId: string): Promise<{ count: number }> {
-    const count = await this.notificationModel.countDocuments({
-      userId: new Types.ObjectId(userId),
-      isRead: false,
-    });
+    // FIX: Changed from callback to await/exec
+    const count = await this.notificationModel
+      .countDocuments({
+        userId: new Types.ObjectId(userId),
+        isRead: false,
+      })
+      .exec();
     return { count };
   }
 
@@ -145,6 +150,7 @@ export class NotificationsService {
     notificationId: string,
     userId: string,
   ): Promise<NotificationDocument> {
+    // FIX: Changed from callback to await/exec
     const updatedNotification = await this.notificationModel
       .findOneAndUpdate(
         { _id: notificationId, userId: new Types.ObjectId(userId) },
@@ -165,22 +171,28 @@ export class NotificationsService {
     userId: string,
     notificationIds: string[],
   ): Promise<{ modifiedCount: number }> {
-    const result = await this.notificationModel.updateMany(
-      {
-        userId: new Types.ObjectId(userId),
-        _id: { $in: notificationIds },
-        isRead: false,
-      },
-      { $set: { isRead: true } },
-    );
+    // FIX: Changed from callback to await/exec
+    const result = await this.notificationModel
+      .updateMany(
+        {
+          userId: new Types.ObjectId(userId),
+          _id: { $in: notificationIds },
+          isRead: false,
+        },
+        { $set: { isRead: true } },
+      )
+      .exec();
     return { modifiedCount: result.modifiedCount };
   }
 
   async markAllAsRead(userId: string): Promise<{ modifiedCount: number }> {
-    const result = await this.notificationModel.updateMany(
-      { userId: new Types.ObjectId(userId), isRead: false },
-      { $set: { isRead: true } },
-    );
+    // FIX: Changed from callback to await/exec
+    const result = await this.notificationModel
+      .updateMany(
+        { userId: new Types.ObjectId(userId), isRead: false },
+        { $set: { isRead: true } },
+      )
+      .exec();
     return { modifiedCount: result.modifiedCount };
   }
 }

@@ -1,3 +1,4 @@
+// src/settings/settings.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -13,14 +14,14 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    // FIX: Correctly await the promise returned by .create()
+    // FIX: Awaited the create method
     return await this.settingModel.create({
       userId: new Types.ObjectId(userId),
     });
   }
 
   async findOrCreateByUserId(userId: string): Promise<SettingDocument> {
-    // FIX: Use await and .exec() to handle the promise correctly
+    // FIX: Changed from callback to await/exec
     const settings = await this.settingModel
       .findOne({ userId: new Types.ObjectId(userId) })
       .exec();
@@ -121,7 +122,7 @@ export class SettingsService {
       flattenedUpdate.isDefault = updateSettingDto.isDefault;
     }
 
-    // FIX: Use await and .exec() to handle the promise correctly
+    // FIX: Changed from callback to await/exec
     const updatedSettings = await this.settingModel
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
@@ -142,7 +143,7 @@ export class SettingsService {
     userId: string,
     theme: 'light' | 'dark' | 'system',
   ): Promise<SettingDocument> {
-    // FIX: Use await and .exec() to handle the promise correctly
+    // FIX: Changed from callback to await/exec
     const updatedSettings = await this.settingModel
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
@@ -162,7 +163,7 @@ export class SettingsService {
   async reset(userId: string): Promise<SettingDocument> {
     const userObjectId = new Types.ObjectId(userId);
 
-    // FIX: Use await and .exec() to handle the promise correctly
+    // FIX: Changed from callback to await/exec
     const existingSettings = await this.settingModel
       .findOne({ userId: userObjectId })
       .exec();
@@ -173,7 +174,7 @@ export class SettingsService {
 
     const defaultInstance = new this.settingModel({ userId: userObjectId });
 
-    // FIX: Use await and .exec() to handle the promise correctly
+    // FIX: Changed from callback to await/exec
     const resetSettings = await this.settingModel
       .findOneAndReplace(
         { _id: existingSettings._id },

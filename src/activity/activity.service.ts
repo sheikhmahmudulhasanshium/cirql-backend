@@ -1,3 +1,4 @@
+// src/activity/activity.service.ts
 import {
   Injectable,
   Logger,
@@ -19,7 +20,6 @@ import {
   UserActivitySummaryDto,
 } from './dto/activity-summery.dto';
 
-// --- START OF FIX: Define new interfaces for our navigation stats ---
 export interface MostVisitedPage {
   url: string;
   count: number;
@@ -29,14 +29,13 @@ export interface NavigationStats {
   lastVisitedUrl?: string | null;
   mostVisitedPages: MostVisitedPage[];
 }
-// --- END OF FIX ---
 
 interface LogPayload {
   userId: Types.ObjectId;
   action: ActivityAction;
   targetId?: Types.ObjectId | string;
   durationMs?: number;
-  details?: { url?: string }; // Allow details to be passed
+  details?: { url?: string };
 }
 
 interface AggregationGroupResult {
@@ -107,9 +106,7 @@ export class ActivityService {
   ) {}
 
   async logEvent(payload: LogPayload): Promise<void> {
-    // --- START OF FIX: Add throttling for PAGE_VIEW actions ---
     if (payload.action === ActivityAction.PAGE_VIEW) {
-      // Throttle page views to one per user per 15 seconds to avoid spamming the log
       const cacheKey = `${payload.userId.toString()}:${payload.action}`;
       const now = Date.now();
       if (
@@ -118,9 +115,8 @@ export class ActivityService {
       ) {
         return;
       }
-      this.throttleCache.set(cacheKey, now + 15000); // 15 second throttle
+      this.throttleCache.set(cacheKey, now + 15000);
     }
-    // --- END OF FIX ---
 
     if (payload.action === ActivityAction.USER_PROFILE_VIEW) {
       if (!payload.targetId) return;
@@ -135,6 +131,7 @@ export class ActivityService {
       this.throttleCache.set(cacheKey, now + this.THROTTLE_PERIOD_MS);
     }
     try {
+      // FIX: Awaited the create method
       await this.activityLogModel.create(payload);
     } catch (err) {
       if (err instanceof Error) {
@@ -152,15 +149,12 @@ export class ActivityService {
     }
   }
 
-  // --- START OF FIX: New method to get navigation stats ---
   async getNavigationStats(userId: string): Promise<NavigationStats> {
     const userObjectId = new Types.ObjectId(userId);
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Run two queries in parallel for efficiency
     const [lastVisitedLog, mostVisitedPages] = await Promise.all([
-      // Query 1: Get the single most recent PAGE_VIEW log
       this.activityLogModel
         .findOne({
           userId: userObjectId,
@@ -172,7 +166,6 @@ export class ActivityService {
         .lean()
         .exec(),
 
-      // Query 2: Aggregate to find the top 5 most visited pages in the last 30 days
       this.activityLogModel.aggregate<MostVisitedPage>([
         {
           $match: {
@@ -183,22 +176,22 @@ export class ActivityService {
         },
         {
           $group: {
-            _id: '$details.url', // Group by the URL
-            count: { $sum: 1 }, // Count occurrences
+            _id: '$details.url',
+            count: { $sum: 1 },
           },
         },
         {
           $sort: {
-            count: -1, // Sort by the highest count
+            count: -1,
           },
         },
         {
-          $limit: 5, // Limit to the top 5
+          $limit: 5,
         },
         {
           $project: {
             _id: 0,
-            url: '$_id', // Rename _id to url
+            url: '$_id',
             count: 1,
           },
         },
@@ -210,7 +203,6 @@ export class ActivityService {
       mostVisitedPages: mostVisitedPages,
     };
   }
-  // --- END OF FIX ---
 
   async getUserActivitySummary(
     userId: string,
@@ -222,8 +214,9 @@ export class ActivityService {
     }
     const userObjectId = new Types.ObjectId(userId);
     const oneWeekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-    const results =
-      await this.activityLogModel.aggregate<AggregationGroupResult>([
+    // FIX: Awaited the aggregate method
+    const results = await this.activityLogModel
+      .aggregate<AggregationGroupResult>([
         { $match: { userId: userObjectId, createdAt: { $gte: oneWeekAgo } } },
         {
           $group: {
@@ -232,7 +225,8 @@ export class ActivityService {
             totalDuration: { $sum: '$durationMs' },
           },
         },
-      ]);
+      ])
+      .exec();
     const summary: UserActivitySummaryDto = {
       logins: 0,
       profileViews: 0,
@@ -292,31 +286,33 @@ export class ActivityService {
           createdAt: { $gte: previousStartDate, $lt: startDate },
         })
         .exec(),
-      this.activityLogModel.aggregate<ActiveUserDto>([
-        { $match: { createdAt: { $gte: startDate, $lt: endDate } } },
-        { $group: { _id: '$userId', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 5 },
-        {
-          $lookup: {
-            from: 'users',
-            localField: '_id',
-            foreignField: '_id',
-            as: 'userDetails',
+      this.activityLogModel
+        .aggregate<ActiveUserDto>([
+          { $match: { createdAt: { $gte: startDate, $lt: endDate } } },
+          { $group: { _id: '$userId', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 5 },
+          {
+            $lookup: {
+              from: 'users',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'userDetails',
+            },
           },
-        },
-        { $unwind: '$userDetails' },
-        {
-          $project: {
-            _id: 0,
-            userId: '$_id',
-            firstName: '$userDetails.firstName',
-            lastName: '$userDetails.lastName',
-            picture: '$userDetails.picture',
-            activityCount: '$count',
+          { $unwind: '$userDetails' },
+          {
+            $project: {
+              _id: 0,
+              userId: '$_id',
+              firstName: '$userDetails.firstName',
+              lastName: '$userDetails.lastName',
+              picture: '$userDetails.picture',
+              activityCount: '$count',
+            },
           },
-        },
-      ]),
+        ])
+        .exec(),
     ]);
 
     const growthPercentage =
@@ -347,31 +343,34 @@ export class ActivityService {
     period: AnalyticsPeriod = AnalyticsPeriod.SEVEN_DAYS,
   ): Promise<GrowthChartDataDto[]> {
     const { startDate, endDate } = getDateRange(period);
-    const results = await this.userModel.aggregate<GrowthChartDataDto>([
-      {
-        $match: {
-          createdAt: { $gte: startDate, $lt: endDate },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+    // FIX: Awaited the aggregate method
+    const results = await this.userModel
+      .aggregate<GrowthChartDataDto>([
+        {
+          $match: {
+            createdAt: { $gte: startDate, $lt: endDate },
           },
-          count: { $sum: 1 },
         },
-      },
-      {
-        $sort: { _id: 1 },
-      },
-      {
-        $project: {
-          _id: 0,
-          date: '$_id',
-          count: '$count',
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+            },
+            count: { $sum: 1 },
+          },
         },
-      },
-    ]);
+        {
+          $sort: { _id: 1 },
+        },
+        {
+          $project: {
+            _id: 0,
+            date: '$_id',
+            count: '$count',
+          },
+        },
+      ])
+      .exec();
 
     return results;
   }
@@ -383,32 +382,35 @@ export class ActivityService {
     const { startDate, endDate } = getDateRange(period);
     const userObjectId = new Types.ObjectId(userId);
 
-    const results = await this.activityLogModel.aggregate<GrowthChartDataDto>([
-      {
-        $match: {
-          userId: userObjectId,
-          createdAt: { $gte: startDate, $lt: endDate },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+    // FIX: Awaited the aggregate method
+    const results = await this.activityLogModel
+      .aggregate<GrowthChartDataDto>([
+        {
+          $match: {
+            userId: userObjectId,
+            createdAt: { $gte: startDate, $lt: endDate },
           },
-          count: { $sum: 1 },
         },
-      },
-      {
-        $sort: { _id: 1 },
-      },
-      {
-        $project: {
-          _id: 0,
-          date: '$_id',
-          count: '$count',
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+            },
+            count: { $sum: 1 },
+          },
         },
-      },
-    ]);
+        {
+          $sort: { _id: 1 },
+        },
+        {
+          $project: {
+            _id: 0,
+            date: '$_id',
+            count: '$count',
+          },
+        },
+      ])
+      .exec();
 
     return results;
   }

@@ -62,6 +62,7 @@ export class FollowersService {
       const followerName =
         `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() ||
         'A new user';
+      // FIX: Awaited the createNotification method
       await this.notificationsService.createNotification({
         userId: new Types.ObjectId(userIdToFollow),
         title: 'You have a new follower!',

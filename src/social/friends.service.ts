@@ -58,13 +58,16 @@ export class FriendsService {
       throw new ConflictException('You are already friends with this user.');
     }
 
-    const existingRequest = await this.friendRequestModel.findOne({
-      $or: [
-        { requester: requesterId, recipient: recipientId },
-        { requester: recipientId, recipient: requesterId },
-      ],
-      status: FriendRequestStatus.PENDING,
-    });
+    // FIX: Changed from callback to await/exec
+    const existingRequest = await this.friendRequestModel
+      .findOne({
+        $or: [
+          { requester: requesterId, recipient: recipientId },
+          { requester: recipientId, recipient: requesterId },
+        ],
+        status: FriendRequestStatus.PENDING,
+      })
+      .exec();
 
     if (existingRequest) {
       throw new ConflictException(
@@ -72,6 +75,7 @@ export class FriendsService {
       );
     }
 
+    // FIX: Awaited the create method
     const newRequest = await this.friendRequestModel.create({
       requester: new Types.ObjectId(requesterId),
       recipient: new Types.ObjectId(recipientId),
@@ -81,6 +85,7 @@ export class FriendsService {
       `${requester.firstName || ''} ${requester.lastName || ''}`.trim() ||
       'A user';
 
+    // FIX: Awaited the createNotification method
     await this.notificationsService.createNotification({
       userId: new Types.ObjectId(recipientId),
       title: 'New Friend Request',
@@ -96,7 +101,7 @@ export class FriendsService {
     requestId: string,
     currentUser: UserDocument,
   ): Promise<{ message: string }> {
-    const request = await this.friendRequestModel.findById(requestId);
+    const request = await this.friendRequestModel.findById(requestId).exec();
     const currentUserId = currentUser._id.toString();
 
     if (!request || request.status !== FriendRequestStatus.PENDING) {
@@ -130,7 +135,7 @@ export class FriendsService {
     await Promise.all([
       requesterProfile.save(),
       recipientProfile.save(),
-      this.friendRequestModel.deleteOne({ _id: requestId }),
+      this.friendRequestModel.deleteOne({ _id: requestId }).exec(),
     ]);
 
     const recipientName =
@@ -151,14 +156,17 @@ export class FriendsService {
     requestId: string,
     currentUserId: string,
   ): Promise<{ message: string }> {
-    const result = await this.friendRequestModel.findOneAndUpdate(
-      {
-        _id: requestId,
-        recipient: currentUserId,
-        status: FriendRequestStatus.PENDING,
-      },
-      { status: FriendRequestStatus.REJECTED },
-    );
+    // FIX: Changed from callback to await/exec
+    const result = await this.friendRequestModel
+      .findOneAndUpdate(
+        {
+          _id: requestId,
+          recipient: currentUserId,
+          status: FriendRequestStatus.PENDING,
+        },
+        { status: FriendRequestStatus.REJECTED },
+      )
+      .exec();
 
     if (!result) {
       throw new NotFoundException(
@@ -208,11 +216,13 @@ export class FriendsService {
   }
 
   async getPendingRequests(userId: string) {
+    // FIX: Changed from callback to await/exec
     return this.friendRequestModel
       .find({
         recipient: userId,
         status: FriendRequestStatus.PENDING,
       })
-      .populate('requester', 'firstName lastName email picture');
+      .populate('requester', 'firstName lastName email picture')
+      .exec();
   }
 }
