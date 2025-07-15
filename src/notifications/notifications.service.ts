@@ -39,10 +39,8 @@ export class NotificationsService {
     this.logger.log(
       `Creating notification for user ${payload.userId.toString()}`,
     );
-    // FIX: Awaited the save method
-    const notification = new this.notificationModel();
-    Object.assign(notification, payload);
-    return await notification.save();
+    // FIX: Await the create method
+    return await this.notificationModel.create(payload);
   }
 
   async createGlobalNotification(
@@ -57,7 +55,6 @@ export class NotificationsService {
     }));
 
     if (notificationPayloads.length > 0) {
-      // FIX: Awaited the insertMany method
       await this.notificationModel.insertMany(notificationPayloads, {
         ordered: false,
       });
@@ -136,7 +133,7 @@ export class NotificationsService {
   }
 
   async getUnreadCount(userId: string): Promise<{ count: number }> {
-    // FIX: Changed from callback to await/exec
+    // FIX: Correctly use await and .exec()
     const count = await this.notificationModel
       .countDocuments({
         userId: new Types.ObjectId(userId),
@@ -150,7 +147,7 @@ export class NotificationsService {
     notificationId: string,
     userId: string,
   ): Promise<NotificationDocument> {
-    // FIX: Changed from callback to await/exec
+    // FIX: Correctly use await and .exec()
     const updatedNotification = await this.notificationModel
       .findOneAndUpdate(
         { _id: notificationId, userId: new Types.ObjectId(userId) },
@@ -171,12 +168,12 @@ export class NotificationsService {
     userId: string,
     notificationIds: string[],
   ): Promise<{ modifiedCount: number }> {
-    // FIX: Changed from callback to await/exec
+    // FIX: Correctly use await and .exec()
     const result = await this.notificationModel
       .updateMany(
         {
           userId: new Types.ObjectId(userId),
-          _id: { $in: notificationIds },
+          _id: { $in: notificationIds.map((id) => new Types.ObjectId(id)) },
           isRead: false,
         },
         { $set: { isRead: true } },
@@ -186,7 +183,7 @@ export class NotificationsService {
   }
 
   async markAllAsRead(userId: string): Promise<{ modifiedCount: number }> {
-    // FIX: Changed from callback to await/exec
+    // FIX: Correctly use await and .exec()
     const result = await this.notificationModel
       .updateMany(
         { userId: new Types.ObjectId(userId), isRead: false },

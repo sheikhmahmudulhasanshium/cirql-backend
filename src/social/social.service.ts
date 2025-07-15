@@ -1,3 +1,4 @@
+// src/social/social.service.ts
 import {
   Injectable,
   Logger,
@@ -33,6 +34,7 @@ export class SocialService {
       return null;
     }
 
+    // FIX: Correctly use await and .exec()
     let profile = await this.socialProfileModel
       .findOne({ owner: new Types.ObjectId(userId) })
       .exec();
@@ -41,7 +43,7 @@ export class SocialService {
       this.logger.log(
         `No social profile found for user ${userId}. Creating one.`,
       );
-      // FIX: Use await on the .create() method.
+      // FIX: Await the create method
       profile = await this.socialProfileModel.create({
         owner: new Types.ObjectId(userId),
       });
@@ -110,10 +112,12 @@ export class SocialService {
       userToBlockProfile.followers = userToBlockProfile.followers.filter(
         (id) => id.toString() !== currentUserId,
       );
+      // FIX: Await the save method
       await userToBlockProfile.save();
     }
 
-    return blockerProfile.save();
+    // FIX: Await the save method
+    return await blockerProfile.save();
   }
 
   async unblockUser(
@@ -138,6 +142,7 @@ export class SocialService {
       );
     }
 
-    return profile.save();
+    // FIX: Await the save method
+    return await profile.save();
   }
 }

@@ -1,3 +1,4 @@
+// src/support/support.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -5,7 +6,6 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-// --- FIX: Import SortOrder and FilterQuery from Mongoose ---
 import { Model, Types, FilterQuery, SortOrder } from 'mongoose';
 import {
   Ticket,
@@ -166,7 +166,8 @@ export class SupportService {
   ): Promise<TicketDocument> {
     const ticket = await this.ticketModel
       .findById(ticketId)
-      .populate<{ user: UserDocument }>('user', 'email firstName lastName');
+      .populate<{ user: UserDocument }>('user', 'email firstName lastName')
+      .exec();
 
     if (!ticket) throw new NotFoundException('Ticket not found.');
     if (ticket.isLocked) {
@@ -181,7 +182,6 @@ export class SupportService {
     }
 
     const ticketOwnerId = ticket.user?._id;
-    // --- FIX: Changed .equals() to string comparison ---
     const isOwner =
       ticket.user &&
       ticketOwnerId &&
@@ -250,17 +250,16 @@ export class SupportService {
     editMessageDto: EditMessageDto,
     user: UserDocument,
   ): Promise<ActualMessageDocument> {
-    const message = await this.messageModel.findById(messageId);
+    const message = await this.messageModel.findById(messageId).exec();
     if (!message) {
       throw new NotFoundException('Message not found.');
     }
 
-    // --- FIX: Changed .equals() to string comparison ---
     if (message.sender.toString() !== user._id.toString()) {
       throw new ForbiddenException('You can only edit your own messages.');
     }
 
-    const ticket = await this.ticketModel.findById(message.ticketId);
+    const ticket = await this.ticketModel.findById(message.ticketId).exec();
     if (!ticket) {
       throw new NotFoundException(
         'The ticket associated with this message could not be found.',
@@ -283,7 +282,8 @@ export class SupportService {
   ): Promise<TicketDocument> {
     const ticket = await this.ticketModel
       .findById(ticketId)
-      .populate<{ user: UserDocument }>('user', 'email firstName');
+      .populate<{ user: UserDocument }>('user', 'email firstName')
+      .exec();
 
     if (!ticket) throw new NotFoundException('Ticket not found.');
 
@@ -309,14 +309,14 @@ export class SupportService {
   }
 
   async lockTicket(ticketId: string): Promise<TicketDocument> {
-    const ticket = await this.ticketModel.findById(ticketId);
+    const ticket = await this.ticketModel.findById(ticketId).exec();
     if (!ticket) throw new NotFoundException('Ticket not found.');
     ticket.isLocked = true;
     return ticket.save();
   }
 
   async unlockTicket(ticketId: string): Promise<TicketDocument> {
-    const ticket = await this.ticketModel.findById(ticketId);
+    const ticket = await this.ticketModel.findById(ticketId).exec();
     if (!ticket) throw new NotFoundException('Ticket not found.');
     ticket.isLocked = false;
     return ticket.save();
@@ -346,7 +346,6 @@ export class SupportService {
       userPerformingAction.roles.includes(Role.Owner);
 
     const ticketOwnerId = ticket.user?._id;
-    // --- FIX: Changed .equals() to string comparison ---
     const isOwner =
       ticket.user &&
       ticketOwnerId &&
@@ -359,7 +358,7 @@ export class SupportService {
   }
 
   async markTicketAsSeen(ticketId: string, user: UserDocument): Promise<void> {
-    const ticketFromDb = await this.ticketModel.findById(ticketId);
+    const ticketFromDb = await this.ticketModel.findById(ticketId).exec();
     if (!ticketFromDb) {
       throw new NotFoundException('Ticket not found.');
     }
@@ -372,7 +371,6 @@ export class SupportService {
         ticketFromDb.user instanceof Types.ObjectId
           ? ticketFromDb.user
           : ticketFromDb.user._id;
-      // --- FIX: Changed .equals() to string comparison ---
       isOwner = user._id.toString() === userIdToCompare.toString();
     }
 
@@ -382,15 +380,13 @@ export class SupportService {
       );
     }
     if (isAdmin) {
-      await this.ticketModel.updateOne(
-        { _id: ticketId },
-        { lastSeenByAdminAt: new Date() },
-      );
+      await this.ticketModel
+        .updateOne({ _id: ticketId }, { lastSeenByAdminAt: new Date() })
+        .exec();
     } else if (isOwner) {
-      await this.ticketModel.updateOne(
-        { _id: ticketId },
-        { lastSeenByUserAt: new Date() },
-      );
+      await this.ticketModel
+        .updateOne({ _id: ticketId }, { lastSeenByUserAt: new Date() })
+        .exec();
     }
     this.logger.log(`Ticket ${ticketId} marked as seen by user ${user.id}`);
   }
@@ -468,10 +464,13 @@ export class SupportService {
     createTicketDto: CreateSupportDto,
     user: UserDocument,
   ): Promise<TicketDocument> {
-    const recentTicket = await this.ticketModel.findOne({
-      user: user._id,
-      createdAt: { $gte: new Date(Date.now() - 60000) },
-    });
+    // FIX: Correctly use await and .exec()
+    const recentTicket = await this.ticketModel
+      .findOne({
+        user: user._id,
+        createdAt: { $gte: new Date(Date.now() - 60000) },
+      })
+      .exec();
     if (recentTicket)
       throw new ForbiddenException(
         'You can only create one ticket per minute.',
@@ -546,14 +545,13 @@ export class SupportService {
     }
 
     const [field, order] = (query.sortBy || 'updatedAt:desc').split(':');
-    // --- FIX: Add explicit type to satisfy TypeScript ---
     const sortOption: { [key: string]: SortOrder } = {
       [field]: order === 'desc' ? -1 : 1,
     };
 
     const tickets = await this.ticketModel
       .find(filter)
-      .sort(sortOption) // Now correctly typed
+      .sort(sortOption)
       .populate('user', '_id firstName lastName email picture')
       .select('-messages')
       .lean()

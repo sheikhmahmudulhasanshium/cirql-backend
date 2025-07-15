@@ -131,7 +131,6 @@ export class ActivityService {
       this.throttleCache.set(cacheKey, now + this.THROTTLE_PERIOD_MS);
     }
     try {
-      // FIX: Awaited the create method
       await this.activityLogModel.create(payload);
     } catch (err) {
       if (err instanceof Error) {
@@ -214,7 +213,7 @@ export class ActivityService {
     }
     const userObjectId = new Types.ObjectId(userId);
     const oneWeekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-    // FIX: Awaited the aggregate method
+    // FIX: Correctly use await and .exec()
     const results = await this.activityLogModel
       .aggregate<AggregationGroupResult>([
         { $match: { userId: userObjectId, createdAt: { $gte: oneWeekAgo } } },
@@ -286,6 +285,7 @@ export class ActivityService {
           createdAt: { $gte: previousStartDate, $lt: startDate },
         })
         .exec(),
+      // FIX: Correctly use await and .exec()
       this.activityLogModel
         .aggregate<ActiveUserDto>([
           { $match: { createdAt: { $gte: startDate, $lt: endDate } } },
@@ -343,7 +343,7 @@ export class ActivityService {
     period: AnalyticsPeriod = AnalyticsPeriod.SEVEN_DAYS,
   ): Promise<GrowthChartDataDto[]> {
     const { startDate, endDate } = getDateRange(period);
-    // FIX: Awaited the aggregate method
+    // FIX: Correctly use await and .exec()
     const results = await this.userModel
       .aggregate<GrowthChartDataDto>([
         {
@@ -382,7 +382,7 @@ export class ActivityService {
     const { startDate, endDate } = getDateRange(period);
     const userObjectId = new Types.ObjectId(userId);
 
-    // FIX: Awaited the aggregate method
+    // FIX: Correctly use await and .exec()
     const results = await this.activityLogModel
       .aggregate<GrowthChartDataDto>([
         {

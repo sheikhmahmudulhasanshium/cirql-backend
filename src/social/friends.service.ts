@@ -62,8 +62,14 @@ export class FriendsService {
     const existingRequest = await this.friendRequestModel
       .findOne({
         $or: [
-          { requester: requesterId, recipient: recipientId },
-          { requester: recipientId, recipient: requesterId },
+          {
+            requester: new Types.ObjectId(requesterId),
+            recipient: new Types.ObjectId(recipientId),
+          },
+          {
+            requester: new Types.ObjectId(recipientId),
+            recipient: new Types.ObjectId(requesterId),
+          },
         ],
         status: FriendRequestStatus.PENDING,
       })
@@ -85,7 +91,6 @@ export class FriendsService {
       `${requester.firstName || ''} ${requester.lastName || ''}`.trim() ||
       'A user';
 
-    // FIX: Awaited the createNotification method
     await this.notificationsService.createNotification({
       userId: new Types.ObjectId(recipientId),
       title: 'New Friend Request',
@@ -161,7 +166,7 @@ export class FriendsService {
       .findOneAndUpdate(
         {
           _id: requestId,
-          recipient: currentUserId,
+          recipient: new Types.ObjectId(currentUserId),
           status: FriendRequestStatus.PENDING,
         },
         { status: FriendRequestStatus.REJECTED },
@@ -219,7 +224,7 @@ export class FriendsService {
     // FIX: Changed from callback to await/exec
     return this.friendRequestModel
       .find({
-        recipient: userId,
+        recipient: new Types.ObjectId(userId),
         status: FriendRequestStatus.PENDING,
       })
       .populate('requester', 'firstName lastName email picture')

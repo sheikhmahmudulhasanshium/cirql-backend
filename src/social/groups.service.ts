@@ -26,11 +26,11 @@ export class GroupsService {
     createGroupDto: CreateGroupDto,
   ): Promise<GroupDocument> {
     const ownerObjectId = new Types.ObjectId(ownerId);
-    // FIX: Use await on the .create() method.
+    // FIX: Await the create method
     return await this.groupModel.create({
       ...createGroupDto,
       owner: ownerObjectId,
-      members: [ownerObjectId], // The owner is always the first member
+      members: [ownerObjectId],
     });
   }
 
