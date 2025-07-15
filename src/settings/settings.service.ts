@@ -14,14 +14,14 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    // FIX: Awaited the create method (which returns a promise directly)
+    // FIX: Await the .create() promise
     return await this.settingModel.create({
       userId: new Types.ObjectId(userId),
     });
   }
 
   async findOrCreateByUserId(userId: string): Promise<SettingDocument> {
-    // FIX: Changed from callback to await/exec
+    // FIX: Add .exec() to the query
     const settings = await this.settingModel
       .findOne({ userId: new Types.ObjectId(userId) })
       .exec();
@@ -122,7 +122,7 @@ export class SettingsService {
       flattenedUpdate.isDefault = updateSettingDto.isDefault;
     }
 
-    // FIX: Changed from callback to await/exec
+    // FIX: Add .exec() to the query
     const updatedSettings = await this.settingModel
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
@@ -143,7 +143,7 @@ export class SettingsService {
     userId: string,
     theme: 'light' | 'dark' | 'system',
   ): Promise<SettingDocument> {
-    // FIX: Changed from callback to await/exec
+    // FIX: Add .exec() to the query
     const updatedSettings = await this.settingModel
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
@@ -163,7 +163,7 @@ export class SettingsService {
   async reset(userId: string): Promise<SettingDocument> {
     const userObjectId = new Types.ObjectId(userId);
 
-    // FIX: Changed from callback to await/exec
+    // FIX: Add .exec() to the query
     const existingSettings = await this.settingModel
       .findOne({ userId: userObjectId })
       .exec();
@@ -174,7 +174,7 @@ export class SettingsService {
 
     const defaultInstance = new this.settingModel({ userId: userObjectId });
 
-    // FIX: Changed from callback to await/exec
+    // FIX: Add .exec() to the query
     const resetSettings = await this.settingModel
       .findOneAndReplace(
         { _id: existingSettings._id },

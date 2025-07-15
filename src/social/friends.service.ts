@@ -58,7 +58,7 @@ export class FriendsService {
       throw new ConflictException('You are already friends with this user.');
     }
 
-    // FIX: Changed from callback to await/exec
+    // FIX: Add .exec() to the query
     const existingRequest = await this.friendRequestModel
       .findOne({
         $or: [
@@ -81,7 +81,7 @@ export class FriendsService {
       );
     }
 
-    // FIX: Awaited the create method
+    // FIX: Await the .create() promise
     const newRequest = await this.friendRequestModel.create({
       requester: new Types.ObjectId(requesterId),
       recipient: new Types.ObjectId(recipientId),
@@ -140,7 +140,9 @@ export class FriendsService {
     await Promise.all([
       requesterProfile.save(),
       recipientProfile.save(),
-      this.friendRequestModel.deleteOne({ _id: requestId }).exec(),
+      this.friendRequestModel
+        .deleteOne({ _id: new Types.ObjectId(requestId) })
+        .exec(),
     ]);
 
     const recipientName =
@@ -161,7 +163,7 @@ export class FriendsService {
     requestId: string,
     currentUserId: string,
   ): Promise<{ message: string }> {
-    // FIX: Changed from callback to await/exec
+    // FIX: Add .exec() to the query
     const result = await this.friendRequestModel
       .findOneAndUpdate(
         {
@@ -221,7 +223,7 @@ export class FriendsService {
   }
 
   async getPendingRequests(userId: string) {
-    // FIX: Changed from callback to await/exec
+    // FIX: Add .exec() to the query
     return this.friendRequestModel
       .find({
         recipient: new Types.ObjectId(userId),

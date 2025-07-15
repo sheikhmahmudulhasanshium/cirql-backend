@@ -26,7 +26,7 @@ export class GroupsService {
     createGroupDto: CreateGroupDto,
   ): Promise<GroupDocument> {
     const ownerObjectId = new Types.ObjectId(ownerId);
-    // FIX: Awaited the create method
+    // FIX: Await the .create() promise
     return await this.groupModel.create({
       ...createGroupDto,
       owner: ownerObjectId,
