@@ -34,7 +34,6 @@ export class SocialService {
       return null;
     }
 
-    // Add .exec() to execute the query
     let profile = await this.socialProfileModel
       .findOne({ owner: new Types.ObjectId(userId) })
       .exec();
@@ -43,7 +42,6 @@ export class SocialService {
       this.logger.log(
         `No social profile found for user ${userId}. Creating one.`,
       );
-      // Await the .create() promise
       profile = await this.socialProfileModel.create({
         owner: new Types.ObjectId(userId),
       });

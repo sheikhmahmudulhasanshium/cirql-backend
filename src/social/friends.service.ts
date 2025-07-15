@@ -58,7 +58,6 @@ export class FriendsService {
       throw new ConflictException('You are already friends with this user.');
     }
 
-    // Add .exec() to execute the query
     const existingRequest = await this.friendRequestModel
       .findOne({
         $or: [
@@ -81,7 +80,6 @@ export class FriendsService {
       );
     }
 
-    // Await the .create() promise
     const newRequest = await this.friendRequestModel.create({
       requester: new Types.ObjectId(requesterId),
       recipient: new Types.ObjectId(recipientId),
@@ -163,7 +161,6 @@ export class FriendsService {
     requestId: string,
     currentUserId: string,
   ): Promise<{ message: string }> {
-    // Add .exec() to execute the query
     const result = await this.friendRequestModel
       .findOneAndUpdate(
         {
@@ -223,7 +220,6 @@ export class FriendsService {
   }
 
   async getPendingRequests(userId: string) {
-    // Add .exec() to execute the query
     return this.friendRequestModel
       .find({
         recipient: new Types.ObjectId(userId),

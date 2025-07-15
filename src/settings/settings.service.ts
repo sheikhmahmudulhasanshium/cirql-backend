@@ -14,14 +14,12 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    // Await the .create() promise which executes immediately
     return await this.settingModel.create({
       userId: new Types.ObjectId(userId),
     });
   }
 
   async findOrCreateByUserId(userId: string): Promise<SettingDocument> {
-    // Add .exec() to execute the query and get a promise
     const settings = await this.settingModel
       .findOne({ userId: new Types.ObjectId(userId) })
       .exec();
@@ -122,7 +120,6 @@ export class SettingsService {
       flattenedUpdate.isDefault = updateSettingDto.isDefault;
     }
 
-    // Add .exec() to execute the query
     const updatedSettings = await this.settingModel
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
@@ -143,7 +140,6 @@ export class SettingsService {
     userId: string,
     theme: 'light' | 'dark' | 'system',
   ): Promise<SettingDocument> {
-    // Add .exec() to execute the query
     const updatedSettings = await this.settingModel
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
@@ -163,7 +159,6 @@ export class SettingsService {
   async reset(userId: string): Promise<SettingDocument> {
     const userObjectId = new Types.ObjectId(userId);
 
-    // Add .exec() to execute the query
     const existingSettings = await this.settingModel
       .findOne({ userId: userObjectId })
       .exec();
@@ -174,7 +169,6 @@ export class SettingsService {
 
     const defaultInstance = new this.settingModel({ userId: userObjectId });
 
-    // Add .exec() to execute the query
     const resetSettings = await this.settingModel
       .findOneAndReplace(
         { _id: existingSettings._id },

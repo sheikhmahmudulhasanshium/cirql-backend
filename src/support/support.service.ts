@@ -467,7 +467,6 @@ export class SupportService {
     createTicketDto: CreateSupportDto,
     user: UserDocument,
   ): Promise<TicketDocument> {
-    // Add .exec() to execute the query
     const recentTicket = await this.ticketModel
       .findOne({
         user: user._id,
