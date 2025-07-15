@@ -14,7 +14,7 @@ export class SettingsService {
   private async createDefaultSettings(
     userId: string,
   ): Promise<SettingDocument> {
-    // FIX: Awaited the create method
+    // FIX: Awaited the create method (which returns a promise directly)
     return await this.settingModel.create({
       userId: new Types.ObjectId(userId),
     });

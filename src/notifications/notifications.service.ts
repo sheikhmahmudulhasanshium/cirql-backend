@@ -39,7 +39,7 @@ export class NotificationsService {
     this.logger.log(
       `Creating notification for user ${payload.userId.toString()}`,
     );
-    // FIX: Await the create method
+    // FIX: Awaited the create method
     return await this.notificationModel.create(payload);
   }
 
@@ -133,7 +133,7 @@ export class NotificationsService {
   }
 
   async getUnreadCount(userId: string): Promise<{ count: number }> {
-    // FIX: Correctly use await and .exec()
+    // FIX: Changed from callback to await/exec
     const count = await this.notificationModel
       .countDocuments({
         userId: new Types.ObjectId(userId),
@@ -147,10 +147,13 @@ export class NotificationsService {
     notificationId: string,
     userId: string,
   ): Promise<NotificationDocument> {
-    // FIX: Correctly use await and .exec()
+    // FIX: Changed from callback to await/exec
     const updatedNotification = await this.notificationModel
       .findOneAndUpdate(
-        { _id: notificationId, userId: new Types.ObjectId(userId) },
+        {
+          _id: new Types.ObjectId(notificationId),
+          userId: new Types.ObjectId(userId),
+        },
         { isRead: true },
         { new: true },
       )
@@ -168,7 +171,7 @@ export class NotificationsService {
     userId: string,
     notificationIds: string[],
   ): Promise<{ modifiedCount: number }> {
-    // FIX: Correctly use await and .exec()
+    // FIX: Changed from callback to await/exec
     const result = await this.notificationModel
       .updateMany(
         {
@@ -183,7 +186,7 @@ export class NotificationsService {
   }
 
   async markAllAsRead(userId: string): Promise<{ modifiedCount: number }> {
-    // FIX: Correctly use await and .exec()
+    // FIX: Changed from callback to await/exec
     const result = await this.notificationModel
       .updateMany(
         { userId: new Types.ObjectId(userId), isRead: false },

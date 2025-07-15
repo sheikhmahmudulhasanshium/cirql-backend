@@ -165,7 +165,7 @@ export class FriendsService {
     const result = await this.friendRequestModel
       .findOneAndUpdate(
         {
-          _id: requestId,
+          _id: new Types.ObjectId(requestId),
           recipient: new Types.ObjectId(currentUserId),
           status: FriendRequestStatus.PENDING,
         },

@@ -34,7 +34,7 @@ export class SocialService {
       return null;
     }
 
-    // FIX: Correctly use await and .exec()
+    // FIX: Changed from callback to await/exec
     let profile = await this.socialProfileModel
       .findOne({ owner: new Types.ObjectId(userId) })
       .exec();
@@ -43,7 +43,7 @@ export class SocialService {
       this.logger.log(
         `No social profile found for user ${userId}. Creating one.`,
       );
-      // FIX: Await the create method
+      // FIX: Awaited the create method
       profile = await this.socialProfileModel.create({
         owner: new Types.ObjectId(userId),
       });
@@ -112,11 +112,10 @@ export class SocialService {
       userToBlockProfile.followers = userToBlockProfile.followers.filter(
         (id) => id.toString() !== currentUserId,
       );
-      // FIX: Await the save method
       await userToBlockProfile.save();
     }
 
-    // FIX: Await the save method
+    // FIX: Awaited the save method
     return await blockerProfile.save();
   }
 
@@ -142,7 +141,6 @@ export class SocialService {
       );
     }
 
-    // FIX: Await the save method
     return await profile.save();
   }
 }

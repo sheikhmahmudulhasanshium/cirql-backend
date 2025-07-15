@@ -94,13 +94,10 @@ export class SupportService {
 
     const emailTextBody = `
       New Support Ticket Alert
-
       A new support ticket requires your attention.
       Submitted by: ${submittedBy}
-
       Preview:
       "${initialMessageContent.substring(0, 150)}..."
-
       You can view the full ticket and reply by visiting:
       ${ticketUrl}
     `;
@@ -381,11 +378,17 @@ export class SupportService {
     }
     if (isAdmin) {
       await this.ticketModel
-        .updateOne({ _id: ticketId }, { lastSeenByAdminAt: new Date() })
+        .updateOne(
+          { _id: new Types.ObjectId(ticketId) },
+          { lastSeenByAdminAt: new Date() },
+        )
         .exec();
     } else if (isOwner) {
       await this.ticketModel
-        .updateOne({ _id: ticketId }, { lastSeenByUserAt: new Date() })
+        .updateOne(
+          { _id: new Types.ObjectId(ticketId) },
+          { lastSeenByUserAt: new Date() },
+        )
         .exec();
     }
     this.logger.log(`Ticket ${ticketId} marked as seen by user ${user.id}`);

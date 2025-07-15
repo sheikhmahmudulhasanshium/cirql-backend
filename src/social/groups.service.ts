@@ -26,7 +26,7 @@ export class GroupsService {
     createGroupDto: CreateGroupDto,
   ): Promise<GroupDocument> {
     const ownerObjectId = new Types.ObjectId(ownerId);
-    // FIX: Await the create method
+    // FIX: Awaited the create method
     return await this.groupModel.create({
       ...createGroupDto,
       owner: ownerObjectId,
@@ -69,7 +69,9 @@ export class GroupsService {
         'You do not have permission to delete this group.',
       );
     }
-    await this.groupModel.deleteOne({ _id: groupId }).exec();
+    await this.groupModel
+      .deleteOne({ _id: new Types.ObjectId(groupId) })
+      .exec();
   }
 
   async addMember(
