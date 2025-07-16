@@ -1,4 +1,4 @@
-// FILE: src/social/schemas/group.schema.ts
+// src/social/schemas/group.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
@@ -17,6 +17,14 @@ export class Group {
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
   members: Types.ObjectId[];
+
+  // --- NEW PROPERTIES FOR GROUP ICON ---
+  @Prop({ type: String, required: false })
+  iconUrl?: string;
+
+  @Prop({ type: String, required: false })
+  iconKey?: string;
+  // --- END NEW PROPERTIES ---
 }
 
 export const GroupSchema = SchemaFactory.createForClass(Group);

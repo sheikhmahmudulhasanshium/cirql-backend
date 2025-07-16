@@ -1,60 +1,93 @@
-// src/upload/upload.controller.ts
-import { Controller, All, Req, Res, Next } from '@nestjs/common';
-import type { Request, Response, NextFunction } from 'express';
-import { createRouteHandler } from 'uploadthing/express';
-import * as jwt from 'jsonwebtoken';
-import { ApiExcludeController } from '@nestjs/swagger';
-import { JwtPayload } from '../auth/strategies/jwt.strategy';
-import { ourFileRouter } from './upload.router';
+import {
+  Controller,
+  Post,
+  Body,
+  Headers,
+  UnauthorizedException,
+  Logger,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { MediaService } from './media.service';
+import { AttachmentService } from './attachment.service';
+import { Types } from 'mongoose';
 
-@ApiExcludeController()
-// --- THIS IS THE FIX ---
-// Set the controller to listen on the path the proxy will forward to.
-// The default path is `/api/uploadthing`.
+// The data structure sent by the UploadThing webhook
+interface UploadThingFile {
+  url: string; // This is the temporary URL from UploadThing
+  key: string;
+  name: string;
+  size: number;
+  type: string;
+}
+
+interface UploadThingWebhookPayload {
+  file: UploadThingFile;
+  metadata: {
+    userId: string;
+  };
+}
+
 @Controller('api/uploadthing')
 export class UploadController {
-  private readonly utRouteHandler = createRouteHandler({
-    router: ourFileRouter,
-  });
+  private readonly logger = new Logger(UploadController.name);
 
-  constructor(private readonly mediaService: MediaService) {}
+  // NestJS's dependency injection works through the constructor like this.
+  // The `@Inject()` decorator is not needed for this standard use case.
+  constructor(
+    private readonly mediaService: MediaService,
+    private readonly attachmentService: AttachmentService,
+  ) {}
 
-  @All('/*')
-  handleUpload(
-    @Req() req: Request,
-    @Res() res: Response,
-    @Next() next: NextFunction,
+  @Post()
+  @HttpCode(HttpStatus.OK)
+  async handleWebhook(
+    @Headers('uploadthing-hook') hook: string,
+    @Body() payload: UploadThingWebhookPayload,
   ) {
+    this.logger.log(`Received webhook for user ${payload.metadata?.userId}`);
+
+    if (hook !== process.env.UPLOADTHING_WEBHOOK_SECRET) {
+      this.logger.warn('Unauthorized webhook attempt');
+      throw new UnauthorizedException('Invalid webhook secret');
+    }
+
+    if (!payload?.file || !payload?.metadata?.userId) {
+      this.logger.error('Webhook payload is missing data', payload);
+      return;
+    }
+
+    const { file, metadata } = payload;
+    const userId = new Types.ObjectId(metadata.userId);
+
     try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res
-          .status(401)
-          .send({ error: 'Unauthorized: No token provided' });
-      }
-      const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET as string,
-      ) as JwtPayload;
+      // 1. Create a new, permanent filename for our Vercel Blob store
+      const newFilename = `user-media/${userId.toString()}/${Date.now()}-${file.name}`;
 
-      if (decoded.isTwoFactorAuthenticationComplete !== true) {
-        return res
-          .status(401)
-          .send({ error: 'Unauthorized: 2FA not completed' });
-      }
+      // 2. Use AttachmentService to fetch from UploadThing's temp URL and upload to OUR blob store
+      const { blob: newBlob, size: newSize } =
+        await this.attachmentService.uploadFromUrl(newFilename, file.url);
 
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      req.uploadthing = {
-        userId: decoded.sub,
-        mediaService: this.mediaService,
-      };
+      this.logger.log(
+        `Successfully moved file to Vercel Blob at ${newBlob.url}`,
+      );
 
-      return this.utRouteHandler(req, res, next);
-    } catch {
-      return res.status(401).send({ error: 'Unauthorized: Invalid token' });
+      // 3. Create the final, permanent media record in our database
+      await this.mediaService.create({
+        userId: userId,
+        url: newBlob.url, // The permanent Vercel Blob URL
+        key: newBlob.pathname, // The path for deletion
+        filename: file.name,
+        size: newSize, // The accurate size
+        type: newBlob.contentType || file.type,
+      });
+
+      this.logger.log(`Successfully saved media record for ${file.key}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to process and save webhook for key: ${file.key}`,
+        error,
+      );
     }
   }
 }

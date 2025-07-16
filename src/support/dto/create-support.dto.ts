@@ -1,4 +1,3 @@
-// src/support/dto/create-support.dto.ts
 import {
   IsString,
   IsNotEmpty,
@@ -28,11 +27,14 @@ export class CreateSupportDto {
   @MaxLength(100)
   subject: string;
 
-  @ApiProperty({ description: 'The initial message from the user.' })
+  // --- THIS IS THE FIX ---
+  // The initial message is now optional.
+  @ApiPropertyOptional({ description: 'The initial message from the user.' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @MinLength(20)
-  initialMessage: string;
+  @MinLength(1)
+  initialMessage?: string;
+  // --- END OF FIX ---
 
   @ApiPropertyOptional({
     type: [String],

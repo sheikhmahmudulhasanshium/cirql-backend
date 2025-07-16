@@ -1,9 +1,9 @@
-// src/support/support.service.ts
 import {
   Injectable,
   NotFoundException,
   ForbiddenException,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, FilterQuery, SortOrder } from 'mongoose';
@@ -161,6 +161,18 @@ export class SupportService {
     addMessageDto: UpdateSupportDto,
     user: UserDocument,
   ): Promise<TicketDocument> {
+    // --- THIS IS THE FIX ---
+    // Ensure that either content or attachments are provided.
+    if (
+      (!addMessageDto.content || addMessageDto.content.trim() === '') &&
+      (!addMessageDto.attachments || addMessageDto.attachments.length === 0)
+    ) {
+      throw new BadRequestException(
+        'A message must have content or at least one attachment.',
+      );
+    }
+    // --- END OF FIX ---
+
     const ticket = await this.ticketModel
       .findById(ticketId)
       .populate<{ user: UserDocument }>('user', 'email firstName lastName')
@@ -196,7 +208,10 @@ export class SupportService {
     const newMessage = await this.messageModel.create({
       ticketId: ticket._id,
       sender: user._id,
-      content: addMessageDto.content,
+      // --- THIS IS THE FIX ---
+      // Provide a default empty string for content if it's not present
+      content: addMessageDto.content || '',
+      // --- END OF FIX ---
       attachments: addMessageDto.attachments || [],
     });
 
@@ -210,6 +225,13 @@ export class SupportService {
       ticket.lastSeenByUserAt = new Date();
     }
     await ticket.save();
+
+    // --- THIS IS THE FIX ---
+    // Use a clearer message content for notifications
+    const notificationContent =
+      addMessageDto.content ||
+      `[${addMessageDto.attachments?.length || 0} attachment(s)]`;
+    // --- END OF FIX ---
 
     if (isAdmin && ticket.user && ticket.user._id) {
       await this.notificationsService.createNotification({
@@ -227,14 +249,18 @@ export class SupportService {
         to: recipientEmail,
         ticketId: ticket._id.toString(),
         ticketSubject: `Re: ${ticket.subject}`,
-        replyContent: addMessageDto.content,
+        // --- THIS IS THE FIX ---
+        replyContent: notificationContent,
+        // --- END OF FIX ---
         replierName: `${user.firstName} ${user.lastName}`,
       });
     } else if (isOwner && ticket.user) {
       const populatedUser = ticket.user;
       await this.notifyAdminsOfNewTicket(
         ticket,
-        addMessageDto.content,
+        // --- THIS IS THE FIX ---
+        notificationContent,
+        // --- END OF FIX ---
         `${populatedUser.firstName} ${populatedUser.lastName}`,
       );
     }
@@ -467,6 +493,19 @@ export class SupportService {
     createTicketDto: CreateSupportDto,
     user: UserDocument,
   ): Promise<TicketDocument> {
+    // --- THIS IS THE FIX ---
+    // Ensure that either a message or attachments are provided.
+    if (
+      (!createTicketDto.initialMessage ||
+        createTicketDto.initialMessage.trim() === '') &&
+      (!createTicketDto.attachments || createTicketDto.attachments.length === 0)
+    ) {
+      throw new BadRequestException(
+        'A new ticket must have an initial message or at least one attachment.',
+      );
+    }
+    // --- END OF FIX ---
+
     const recentTicket = await this.ticketModel
       .findOne({
         user: user._id,
@@ -488,10 +527,14 @@ export class SupportService {
       messages: [],
     });
 
+    const initialMessageContent =
+      createTicketDto.initialMessage ||
+      `[${createTicketDto.attachments?.length || 0} attachment(s)]`;
+
     const initialMessage = await this.messageModel.create({
       ticketId: newTicket._id,
       sender: user._id,
-      content: createTicketDto.initialMessage,
+      content: createTicketDto.initialMessage || '',
       attachments: createTicketDto.attachments || [],
     });
 
@@ -500,7 +543,7 @@ export class SupportService {
 
     await this.notifyAdminsOfNewTicket(
       newTicket,
-      createTicketDto.initialMessage,
+      initialMessageContent,
       `${user.firstName} ${user.lastName}`,
     );
 

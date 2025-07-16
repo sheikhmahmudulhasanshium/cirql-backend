@@ -1,18 +1,18 @@
-// src/support/dto/update-support.dto.ts
 import {
   IsString,
-  IsNotEmpty,
   IsArray,
   IsOptional,
   IsUrl,
+  MinLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateSupportDto {
-  @ApiProperty({ description: 'The content of the reply message.' })
+  @ApiPropertyOptional({ description: 'The content of the reply message.' })
+  @IsOptional() // This allows the field to be missing entirely
   @IsString()
-  @IsNotEmpty()
-  content: string;
+  @MinLength(1) // This ensures if it IS provided, it's not just whitespace
+  content?: string; // The '?' makes it optional in TypeScript
 
   @ApiPropertyOptional({
     type: [String],

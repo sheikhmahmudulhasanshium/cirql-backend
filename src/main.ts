@@ -25,8 +25,10 @@ function configureCommonAppSettings(
   envSuffix: string = '',
 ) {
   app.enableCors({
-    origin:
+    origin: [
       configService.get<string>('FRONTEND_URL') || 'https://localhost:3000',
+      'https://uploadthing.com', // Good practice to allow UploadThing's domain
+    ],
     credentials: true,
   });
 

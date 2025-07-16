@@ -1,14 +1,15 @@
-// src/upload/media.service.ts
 import {
   Injectable,
   Logger,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { del } from '@vercel/blob';
 import { Media, MediaDocument } from './schemas/media.schema';
+import { AttachmentService } from './attachment.service';
 
 export interface CreateMediaParams {
   userId: Types.ObjectId;
@@ -25,7 +26,55 @@ export class MediaService {
 
   constructor(
     @InjectModel(Media.name) private readonly mediaModel: Model<MediaDocument>,
+    private readonly attachmentService: AttachmentService,
   ) {}
+
+  async createFromUrl(
+    urlToFetch: string,
+    userId: Types.ObjectId,
+  ): Promise<MediaDocument> {
+    // --- FIX: Use .toString() for logging the ObjectId ---
+    this.logger.log(
+      `Processing upload from URL for user ${userId.toString()}: ${urlToFetch}`,
+    );
+    try {
+      const originalFilename =
+        urlToFetch.split('/').pop()?.split('?')[0] || 'file-from-url';
+      // --- FIX: Use .toString() for logging the ObjectId ---
+      const newFilename = `user-media/${userId.toString()}/${Date.now()}-${originalFilename}`;
+
+      // Use the updated service method
+      const uploadResult = await this.attachmentService.uploadFromUrl(
+        newFilename,
+        urlToFetch,
+      );
+
+      const { blob, size } = uploadResult;
+
+      const mediaRecord = await this.create({
+        userId: userId,
+        url: blob.url,
+        key: blob.pathname,
+        filename: originalFilename,
+        // --- FIX: Use the size from the uploadResult ---
+        size: size,
+        type: blob.contentType || 'application/octet-stream',
+      });
+
+      this.logger.log(
+        `Successfully created media record ${mediaRecord.id} from URL ${urlToFetch}`,
+      );
+      return mediaRecord;
+    } catch (error) {
+      this.logger.error(
+        `Failed to process upload from URL: ${urlToFetch}`,
+        error,
+      );
+      throw new BadRequestException(
+        `Could not fetch or upload the file from the provided URL. Please ensure it is a direct, public link to a file.`,
+      );
+    }
+  }
 
   async create(params: CreateMediaParams): Promise<MediaDocument> {
     try {
@@ -56,13 +105,7 @@ export class MediaService {
     limit = 20,
   ): Promise<{ data: MediaDocument[]; total: number }> {
     const skip = (page - 1) * limit;
-
-    // --- THIS IS THE FIX ---
-    // Instead of creating a new ObjectId, we pass the userId string directly.
-    // Mongoose will correctly handle the query. This avoids any potential
-    // issues with ObjectId conversion or type mismatches.
     const query = { userId: userId };
-
     const [data, total] = await Promise.all([
       this.mediaModel
         .find(query)
@@ -73,8 +116,6 @@ export class MediaService {
         .exec(),
       this.mediaModel.countDocuments(query),
     ]);
-    // --- END OF FIX ---
-
     return { data: data as MediaDocument[], total };
   }
 
@@ -92,17 +133,18 @@ export class MediaService {
     }
 
     try {
+      // --- FIX: The 'del' function requires the full URL of the blob ---
       await del(media.url);
-      this.logger.log(`Deleted file from Vercel Blob: ${media.key}`);
+      this.logger.log(`Deleted file from Vercel Blob: ${media.url}`);
     } catch (error: unknown) {
       if (error instanceof Error) {
         this.logger.error(
-          `Could not delete file from Vercel Blob: ${media.key}`,
+          `Could not delete file from Vercel Blob: ${media.url}`,
           error.message,
         );
       } else {
         this.logger.error(
-          `Could not delete file from Vercel Blob: ${media.key}`,
+          `Could not delete file from Vercel Blob: ${media.url}`,
           String(error),
         );
       }

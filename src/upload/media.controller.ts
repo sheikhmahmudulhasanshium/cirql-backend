@@ -1,73 +1,50 @@
-// src/upload/media.controller.ts
+//cirql-backend/src/upload/media.controller.ts` (Updated)**
+
 import {
   Controller,
-  Get,
-  Delete,
-  Param,
-  Query,
+  Post,
+  Body,
   UseGuards,
   HttpCode,
   HttpStatus,
-  DefaultValuePipe,
-  ParseIntPipe,
-  Post,
-  Body,
-  ForbiddenException,
-  Headers,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { MediaService, CreateMediaParams } from './media.service';
+import { MediaService } from './media.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserDocument } from '../users/schemas/user.schema';
-import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
+import { CreateMediaDto } from './dto/create-media.dto';
+import { CreateMediaFromUrlDto } from './dto/create-media-from-url.dto';
 
 @ApiTags('Media')
-// --- THIS IS THE FIX ---
-// The controller's base path is simplified to '/media'.
 @Controller('media')
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
 
-  // This endpoint is now at POST /media
+  // --- START: NEW ENDPOINT FOR URL UPLOADS ---
+  @Post('from-url')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Fetch a file from a URL and save it as media' })
+  async createMediaFromUrl(
+    @CurrentUser() user: UserDocument,
+    @Body() createMediaFromUrlDto: CreateMediaFromUrlDto,
+  ) {
+    return this.mediaService.createFromUrl(createMediaFromUrlDto.url, user._id);
+  }
+  // --- END: NEW ENDPOINT ---
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({
-    summary: 'Create a media record (for internal server-to-server use)',
-  })
+  @ApiOperation({ summary: 'Save metadata for a successfully uploaded file' })
   async createMediaRecord(
-    @Body() createMediaDto: CreateMediaParams,
-    @Headers('x-uploadthing-webhook-secret') webhookSecret: string,
-  ) {
-    if (webhookSecret !== process.env.UPLOADTHING_WEBHOOK_SECRET) {
-      throw new ForbiddenException('Invalid webhook secret.');
-    }
-    return this.mediaService.create(createMediaDto);
-  }
-
-  // This endpoint is now at GET /media/my-uploads
-  @Get('my-uploads')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
-  @ApiOperation({ summary: "Get the authenticated user's uploaded media" })
-  async getMyUploads(
     @CurrentUser() user: UserDocument,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Body() createMediaDto: CreateMediaDto,
   ) {
-    return this.mediaService.findForUser(user._id.toString(), page, limit);
-  }
-
-  // This endpoint is now at DELETE /media/:id
-  @Delete(':id')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Delete one of the user's uploaded media files" })
-  async deleteMedia(
-    @CurrentUser() user: UserDocument,
-    @Param('id', ParseObjectIdPipe) mediaId: string,
-  ): Promise<void> {
-    await this.mediaService.deleteById(mediaId, user._id.toString());
+    return this.mediaService.create({
+      ...createMediaDto,
+      userId: user._id,
+    });
   }
 }

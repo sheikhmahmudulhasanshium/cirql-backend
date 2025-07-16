@@ -1,6 +1,12 @@
-// FILE: src/social/dto/create-group.dto.ts
+// src/social/dto/create-group.dto.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, MinLength, MaxLength, IsOptional } from 'class-validator';
+import {
+  IsString,
+  MinLength,
+  MaxLength,
+  IsOptional,
+  IsUrl,
+} from 'class-validator';
 
 export class CreateGroupDto {
   @ApiProperty({
@@ -23,4 +29,20 @@ export class CreateGroupDto {
   @IsString()
   @MaxLength(500)
   description?: string;
+
+  // --- NEW PROPERTIES ---
+  @ApiPropertyOptional({
+    description: 'URL of the group icon from the uploader.',
+  })
+  @IsOptional()
+  @IsUrl()
+  iconUrl?: string;
+
+  @ApiPropertyOptional({
+    description: 'Key/ID of the blob for the group icon.',
+  })
+  @IsOptional()
+  @IsString()
+  iconKey?: string;
+  // --- END NEW PROPERTIES ---
 }
