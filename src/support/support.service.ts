@@ -1,3 +1,4 @@
+// src/support/support.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -161,8 +162,6 @@ export class SupportService {
     addMessageDto: UpdateSupportDto,
     user: UserDocument,
   ): Promise<TicketDocument> {
-    // --- THIS IS THE FIX ---
-    // Ensure that either content or attachments are provided.
     if (
       (!addMessageDto.content || addMessageDto.content.trim() === '') &&
       (!addMessageDto.attachments || addMessageDto.attachments.length === 0)
@@ -171,7 +170,6 @@ export class SupportService {
         'A message must have content or at least one attachment.',
       );
     }
-    // --- END OF FIX ---
 
     const ticket = await this.ticketModel
       .findById(ticketId)
@@ -191,10 +189,12 @@ export class SupportService {
     }
 
     const ticketOwnerId = ticket.user?._id;
+    // --- START OF FIX: Replace .equals() with .toString() comparison ---
     const isOwner =
       ticket.user &&
       ticketOwnerId &&
       user._id.toString() === ticketOwnerId.toString();
+    // --- END OF FIX ---
 
     const isAdmin =
       user.roles.includes(Role.Admin) || user.roles.includes(Role.Owner);
@@ -208,10 +208,7 @@ export class SupportService {
     const newMessage = await this.messageModel.create({
       ticketId: ticket._id,
       sender: user._id,
-      // --- THIS IS THE FIX ---
-      // Provide a default empty string for content if it's not present
       content: addMessageDto.content || '',
-      // --- END OF FIX ---
       attachments: addMessageDto.attachments || [],
     });
 
@@ -226,12 +223,9 @@ export class SupportService {
     }
     await ticket.save();
 
-    // --- THIS IS THE FIX ---
-    // Use a clearer message content for notifications
     const notificationContent =
       addMessageDto.content ||
       `[${addMessageDto.attachments?.length || 0} attachment(s)]`;
-    // --- END OF FIX ---
 
     if (isAdmin && ticket.user && ticket.user._id) {
       await this.notificationsService.createNotification({
@@ -249,18 +243,14 @@ export class SupportService {
         to: recipientEmail,
         ticketId: ticket._id.toString(),
         ticketSubject: `Re: ${ticket.subject}`,
-        // --- THIS IS THE FIX ---
         replyContent: notificationContent,
-        // --- END OF FIX ---
         replierName: `${user.firstName} ${user.lastName}`,
       });
     } else if (isOwner && ticket.user) {
       const populatedUser = ticket.user;
       await this.notifyAdminsOfNewTicket(
         ticket,
-        // --- THIS IS THE FIX ---
         notificationContent,
-        // --- END OF FIX ---
         `${populatedUser.firstName} ${populatedUser.lastName}`,
       );
     }
@@ -277,10 +267,11 @@ export class SupportService {
     if (!message) {
       throw new NotFoundException('Message not found.');
     }
-
+    // --- START OF FIX: Replace .equals() with .toString() comparison ---
     if (message.sender.toString() !== user._id.toString()) {
       throw new ForbiddenException('You can only edit your own messages.');
     }
+    // --- END OF FIX ---
 
     const ticket = await this.ticketModel.findById(message.ticketId).exec();
     if (!ticket) {
@@ -369,10 +360,12 @@ export class SupportService {
       userPerformingAction.roles.includes(Role.Owner);
 
     const ticketOwnerId = ticket.user?._id;
+    // --- START OF FIX: Replace .equals() with .toString() comparison ---
     const isOwner =
       ticket.user &&
       ticketOwnerId &&
       userPerformingAction._id.toString() === ticketOwnerId.toString();
+    // --- END OF FIX ---
 
     if (!isAdmin && !isOwner) {
       throw new ForbiddenException('You cannot view this ticket.');
@@ -394,7 +387,9 @@ export class SupportService {
         ticketFromDb.user instanceof Types.ObjectId
           ? ticketFromDb.user
           : ticketFromDb.user._id;
+      // --- START OF FIX: Replace .equals() with .toString() comparison ---
       isOwner = user._id.toString() === userIdToCompare.toString();
+      // --- END OF FIX ---
     }
 
     if (!isAdmin && !isOwner) {
@@ -493,8 +488,6 @@ export class SupportService {
     createTicketDto: CreateSupportDto,
     user: UserDocument,
   ): Promise<TicketDocument> {
-    // --- THIS IS THE FIX ---
-    // Ensure that either a message or attachments are provided.
     if (
       (!createTicketDto.initialMessage ||
         createTicketDto.initialMessage.trim() === '') &&
@@ -504,7 +497,6 @@ export class SupportService {
         'A new ticket must have an initial message or at least one attachment.',
       );
     }
-    // --- END OF FIX ---
 
     const recentTicket = await this.ticketModel
       .findOne({

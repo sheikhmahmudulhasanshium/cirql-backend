@@ -1,5 +1,3 @@
-//cirql-backend/src/upload/media.controller.ts` (Updated)**
-
 import {
   Controller,
   Post,
@@ -7,14 +5,42 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Get,
+  Query,
+  DefaultValuePipe,
+  ParseIntPipe,
+  Delete,
+  Param,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiProperty,
+  ApiResponse,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { MediaService } from './media.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserDocument } from '../users/schemas/user.schema';
 import { CreateMediaDto } from './dto/create-media.dto';
-import { CreateMediaFromUrlDto } from './dto/create-media-from-url.dto';
+import { Media, MediaDocument } from './schemas/media.schema';
+import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
+
+// --- DTO Class for Swagger Documentation ---
+class PaginationMetadata {
+  @ApiProperty() totalItems: number;
+  @ApiProperty() currentPage: number;
+  @ApiProperty() pageSize: number;
+  @ApiProperty() totalPages: number;
+}
+class PaginatedMediaResponse {
+  @ApiProperty({ default: true }) success: boolean;
+  @ApiProperty({ type: [Media] }) data: MediaDocument[];
+  @ApiProperty({ type: PaginationMetadata }) pagination: PaginationMetadata;
+}
+// --- End DTO Class ---
 
 @ApiTags('Media')
 @Controller('media')
@@ -23,17 +49,55 @@ import { CreateMediaFromUrlDto } from './dto/create-media-from-url.dto';
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
 
-  // --- START: NEW ENDPOINT FOR URL UPLOADS ---
-  @Post('from-url')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Fetch a file from a URL and save it as media' })
-  async createMediaFromUrl(
+  @Get('my-uploads')
+  @ApiOperation({ summary: "Get a paginated list of the current user's media" })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page',
+  })
+  @ApiResponse({ status: 200, type: PaginatedMediaResponse })
+  async getMyUploads(
     @CurrentUser() user: UserDocument,
-    @Body() createMediaFromUrlDto: CreateMediaFromUrlDto,
-  ) {
-    return this.mediaService.createFromUrl(createMediaFromUrlDto.url, user._id);
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(30), ParseIntPipe) limit: number,
+  ): Promise<PaginatedMediaResponse> {
+    const result = await this.mediaService.findForUser(
+      user._id.toString(),
+      page,
+      limit,
+    );
+    return {
+      success: true,
+      data: result.data,
+      pagination: {
+        totalItems: result.total,
+        currentPage: result.page,
+        pageSize: result.limit,
+        totalPages: Math.ceil(result.total / result.limit),
+      },
+    };
   }
-  // --- END: NEW ENDPOINT ---
+
+  @Delete(':mediaId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a media file owned by the current user' })
+  @ApiResponse({ status: 204, description: 'File deleted successfully.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'File not found.' })
+  async deleteMedia(
+    @CurrentUser() user: UserDocument,
+    @Param('mediaId', ParseObjectIdPipe) mediaId: string,
+  ): Promise<void> {
+    await this.mediaService.deleteById(mediaId, user._id.toString());
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

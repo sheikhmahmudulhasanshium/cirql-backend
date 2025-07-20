@@ -50,7 +50,7 @@ export type AdminUserListView = {
   accountStatus: string;
   roles: Role[];
   is2FAEnabled: boolean;
-  picture?: string; // --- FIX: Added the optional picture property ---
+  picture?: string;
 };
 export interface FindAllUsersResponse {
   data: AdminUserListView[];
@@ -186,10 +186,14 @@ export class UsersService {
       }
     }
 
-    await this.userModel.updateOne(
-      { _id: user._id },
-      { $push: { loginHistory: { $each: [new Date()], $slice: -10 } } },
-    );
+    // --- START OF FIX: Add .exec() to the query ---
+    await this.userModel
+      .updateOne(
+        { _id: user._id },
+        { $push: { loginHistory: { $each: [new Date()], $slice: -10 } } },
+      )
+      .exec();
+    // --- END OF FIX ---
   }
 
   async set2FA(
@@ -232,8 +236,6 @@ export class UsersService {
       this.userModel.countDocuments(filter).exec(),
     ]);
 
-    // --- START OF FIX ---
-    // The mapping function now correctly includes the 'picture' field.
     const sanitizedData: AdminUserListView[] = users.map((user) => ({
       _id: user._id,
       email: user.email,
@@ -242,9 +244,8 @@ export class UsersService {
       accountStatus: user.accountStatus,
       roles: user.roles,
       is2FAEnabled: user.is2FAEnabled,
-      picture: user.picture, // This line ensures the picture is included
+      picture: user.picture,
     }));
-    // --- END OF FIX ---
 
     return { data: sanitizedData, total, page, limit };
   }
@@ -530,7 +531,10 @@ export class UsersService {
     if (userToDelete.roles.includes(Role.Owner))
       throw new ForbiddenException('The Owner account cannot be deleted.');
 
+    // --- START OF FIX: Add .exec() to the query ---
     const deletedUser = await this.userModel.findByIdAndDelete(id).exec();
+    // --- END OF FIX ---
+
     if (!deletedUser) {
       throw new NotFoundException(`User with ID "${id}" could not be deleted.`);
     }

@@ -174,6 +174,13 @@ export default bootstrapServerInstance();
 
 // Local development bootstrapping (only if NOT on Vercel and NOT in production for other reasons)
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  // --- START OF FIX: Add this line to allow localhost-to-localhost SSL communication ---
+  // This should ONLY be active for local development.
+  if (process.env.NODE_ENV !== 'production') {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  }
+  // --- END OF FIX ---
+
   async function startLocalDevelopmentServer() {
     // --- MODIFICATION 2: Define HTTPS options using the generated certs ---
     const httpsOptions = {
