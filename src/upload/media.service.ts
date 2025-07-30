@@ -1,114 +1,115 @@
+// src/upload/media.service.ts
+
 import {
   Injectable,
+  OnModuleInit,
   Logger,
-  NotFoundException,
-  ForbiddenException,
+  InternalServerErrorException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import { del } from '@vercel/blob';
-import { Media, MediaDocument } from './schemas/media.schema';
+import { ConfigService } from '@nestjs/config';
+import { google, drive_v3 } from 'googleapis';
+import { Readable } from 'stream';
 
-export interface CreateMediaParams {
-  userId: Types.ObjectId;
-  url: string;
-  key: string;
-  filename: string;
-  size: number;
-  type: string;
+interface GoogleCredentials {
+  client_email: string;
+  private_key: string;
 }
 
 @Injectable()
-export class MediaService {
+export class MediaService implements OnModuleInit {
   private readonly logger = new Logger(MediaService.name);
+  private drive: drive_v3.Drive;
+  private folderId: string;
 
-  constructor(
-    @InjectModel(Media.name) private readonly mediaModel: Model<MediaDocument>,
-  ) {}
+  constructor(private readonly configService: ConfigService) {}
 
-  async create(params: CreateMediaParams): Promise<MediaDocument> {
-    try {
-      const newMedia = await this.mediaModel.create(params);
-      this.logger.log(
-        `Created media record ${newMedia.id} for user ${newMedia.userId.toString()}`,
+  onModuleInit() {
+    this.initializeGoogleDrive();
+    const folderId = this.configService.get<string>('GOOGLE_DRIVE_FOLDER_ID');
+    if (!folderId) {
+      throw new InternalServerErrorException(
+        'GOOGLE_DRIVE_FOLDER_ID is not set.',
       );
-      return newMedia;
-    } catch (error) {
-      if (error instanceof Error) {
-        this.logger.error(
-          `Failed to create media record for user ${params.userId.toString()}`,
-          error.stack,
-        );
-      } else {
-        this.logger.error(
-          `An unknown error occurred while creating media record`,
-          String(error),
-        );
+    }
+    this.folderId = folderId;
+  }
+
+  private initializeGoogleDrive() {
+    const credentialsString = this.configService.get<string>(
+      'GOOGLE_SERVICE_ACCOUNT_CREDENTIALS',
+    );
+    if (!credentialsString) {
+      throw new InternalServerErrorException(
+        'GOOGLE_SERVICE_ACCOUNT_CREDENTIALS is not set.',
+      );
+    }
+    const credentials = JSON.parse(credentialsString) as GoogleCredentials;
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/drive'],
+    });
+    this.drive = google.drive({ version: 'v3', auth });
+    this.logger.log('Google Drive Service Initialized Successfully');
+  }
+
+  async uploadFile(
+    fileBuffer: Buffer,
+    originalName: string,
+    mimeType: string,
+  ): Promise<{ googleFileId: string; thumbnailLink: string }> {
+    try {
+      const createFileResponse = await this.drive.files.create({
+        requestBody: { name: originalName, parents: [this.folderId] },
+        media: { mimeType: mimeType, body: Readable.from(fileBuffer) },
+        fields: 'id',
+      });
+      const googleFileId = createFileResponse.data.id;
+      if (typeof googleFileId !== 'string') {
+        throw new Error('File upload failed, no ID returned from Google.');
       }
+      this.logger.log(`File uploaded to Drive with ID: ${googleFileId}`);
+      const getFileResponse = await this.drive.files.get({
+        fileId: googleFileId,
+        fields: 'thumbnailLink',
+      });
+      const thumbnailLink = getFileResponse.data.thumbnailLink;
+      if (typeof thumbnailLink !== 'string') {
+        this.logger.warn(
+          `No thumbnailLink generated for file ID: ${googleFileId}`,
+        );
+        return { googleFileId, thumbnailLink: '' };
+      }
+      this.logger.log(`Retrieved thumbnail link for ${googleFileId}`);
+      return { googleFileId, thumbnailLink };
+    } catch (error) {
+      this.logger.error('Error during Google Drive upload process', error);
       throw error;
     }
   }
 
-  async findForUser(
-    userId: string,
-    page = 1,
-    limit = 30,
-  ): Promise<{
-    data: MediaDocument[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    const skip = (page - 1) * limit;
-    const query = { userId: new Types.ObjectId(userId) };
-    const [data, total] = await Promise.all([
-      this.mediaModel
-        .find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean()
-        .exec(),
-      this.mediaModel.countDocuments(query).exec(),
-    ]);
-    return { data: data as MediaDocument[], total, page, limit };
-  }
-
-  async deleteById(mediaId: string, userId: string): Promise<void> {
-    const media = await this.mediaModel.findById(mediaId).exec();
-
-    if (!media) {
-      throw new NotFoundException('Media file not found.');
-    }
-
-    if (media.userId.toString() !== userId) {
-      throw new ForbiddenException(
-        'You do not have permission to delete this file.',
-      );
-    }
-
+  async getDownloadStream(googleFileId: string): Promise<Readable> {
     try {
-      // The key from UploadThing is used for deletion.
-      await del(media.url);
       this.logger.log(
-        `Deleted file from Vercel Blob/UploadThing: ${media.url}`,
+        `Requesting download stream for file ID: ${googleFileId}`,
       );
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        this.logger.error(
-          `Could not delete file from provider: ${media.url}`,
-          error.message,
-        );
-      } else {
-        this.logger.error(
-          `Could not delete file from provider: ${media.url}`,
-          String(error),
-        );
+      const response = await this.drive.files.get(
+        { fileId: googleFileId, alt: 'media' },
+        { responseType: 'stream' },
+      );
+      // FIX: This runtime check proves to the linter that the data is a stream.
+      // This is the definitive fix for the unsafe assignment error in the controller.
+      if (response.data instanceof Readable) {
+        return response.data;
       }
-      // Do not re-throw; we should still delete the DB record.
+      throw new InternalServerErrorException(
+        'Google Drive did not return a readable stream.',
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to get download stream for file ID: ${googleFileId}`,
+        error,
+      );
+      throw error;
     }
-
-    await this.mediaModel.findByIdAndDelete(media.id).exec();
-    this.logger.log(`Deleted media record from database: ${media.id}`);
   }
 }

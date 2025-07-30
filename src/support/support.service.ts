@@ -1,4 +1,3 @@
-// src/support/support.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -189,12 +188,10 @@ export class SupportService {
     }
 
     const ticketOwnerId = ticket.user?._id;
-    // --- START OF FIX: Replace .equals() with .toString() comparison ---
     const isOwner =
       ticket.user &&
       ticketOwnerId &&
       user._id.toString() === ticketOwnerId.toString();
-    // --- END OF FIX ---
 
     const isAdmin =
       user.roles.includes(Role.Admin) || user.roles.includes(Role.Owner);
@@ -205,12 +202,15 @@ export class SupportService {
       );
     }
 
+    // --- START OF MODIFICATION: Create message with Media ObjectIDs ---
     const newMessage = await this.messageModel.create({
       ticketId: ticket._id,
       sender: user._id,
       content: addMessageDto.content || '',
-      attachments: addMessageDto.attachments || [],
+      attachments:
+        addMessageDto.attachments?.map((id) => new Types.ObjectId(id)) || [],
     });
+    // --- END OF MODIFICATION ---
 
     ticket.messages.push(newMessage._id);
 
@@ -223,9 +223,11 @@ export class SupportService {
     }
     await ticket.save();
 
+    // --- START OF MODIFICATION: Update notification content logic ---
     const notificationContent =
       addMessageDto.content ||
-      `[${addMessageDto.attachments?.length || 0} attachment(s)]`;
+      `[${addMessageDto.attachments?.length || 0} attachment(s) added]`;
+    // --- END OF MODIFICATION ---
 
     if (isAdmin && ticket.user && ticket.user._id) {
       await this.notificationsService.createNotification({
@@ -267,11 +269,9 @@ export class SupportService {
     if (!message) {
       throw new NotFoundException('Message not found.');
     }
-    // --- START OF FIX: Replace .equals() with .toString() comparison ---
     if (message.sender.toString() !== user._id.toString()) {
       throw new ForbiddenException('You can only edit your own messages.');
     }
-    // --- END OF FIX ---
 
     const ticket = await this.ticketModel.findById(message.ticketId).exec();
     if (!ticket) {
@@ -340,18 +340,26 @@ export class SupportService {
     ticketId: string,
     userPerformingAction: UserDocument,
   ): Promise<TicketDocument> {
+    // --- START OF MODIFICATION: Add population for attachments ---
     const ticket = await this.ticketModel
       .findById(ticketId)
       .populate({
         path: 'messages',
-        populate: {
-          path: 'sender',
-          model: 'User',
-          select: 'firstName lastName picture roles',
-        },
+        populate: [
+          {
+            path: 'sender',
+            model: 'User',
+            select: 'firstName lastName picture roles',
+          },
+          {
+            path: 'attachments',
+            model: 'Media',
+          },
+        ],
       })
       .populate<{ user: UserDocument }>('user', 'firstName lastName email')
       .exec();
+    // --- END OF MODIFICATION ---
 
     if (!ticket) throw new NotFoundException('Ticket not found.');
 
@@ -360,12 +368,10 @@ export class SupportService {
       userPerformingAction.roles.includes(Role.Owner);
 
     const ticketOwnerId = ticket.user?._id;
-    // --- START OF FIX: Replace .equals() with .toString() comparison ---
     const isOwner =
       ticket.user &&
       ticketOwnerId &&
       userPerformingAction._id.toString() === ticketOwnerId.toString();
-    // --- END OF FIX ---
 
     if (!isAdmin && !isOwner) {
       throw new ForbiddenException('You cannot view this ticket.');
@@ -387,9 +393,7 @@ export class SupportService {
         ticketFromDb.user instanceof Types.ObjectId
           ? ticketFromDb.user
           : ticketFromDb.user._id;
-      // --- START OF FIX: Replace .equals() with .toString() comparison ---
       isOwner = user._id.toString() === userIdToCompare.toString();
-      // --- END OF FIX ---
     }
 
     if (!isAdmin && !isOwner) {
@@ -511,24 +515,27 @@ export class SupportService {
     const subject = `[${createTicketDto.category}] - ${createTicketDto.subject}`;
 
     const newTicket = await this.ticketModel.create({
-      ...createTicketDto,
-      subject,
+      category: createTicketDto.category, // Explicitly set fields from DTO
+      subject: subject,
       user: user._id,
       lastSeenByUserAt: new Date(),
       lastSeenByAdminAt: null,
       messages: [],
     });
 
+    // --- START OF MODIFICATION: Update notification content and message creation ---
     const initialMessageContent =
       createTicketDto.initialMessage ||
-      `[${createTicketDto.attachments?.length || 0} attachment(s)]`;
+      `[${createTicketDto.attachments?.length || 0} attachment(s) added]`;
 
     const initialMessage = await this.messageModel.create({
       ticketId: newTicket._id,
       sender: user._id,
       content: createTicketDto.initialMessage || '',
-      attachments: createTicketDto.attachments || [],
+      attachments:
+        createTicketDto.attachments?.map((id) => new Types.ObjectId(id)) || [],
     });
+    // --- END OF MODIFICATION ---
 
     newTicket.messages.push(initialMessage._id);
     await newTicket.save();

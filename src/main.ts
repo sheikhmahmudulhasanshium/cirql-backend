@@ -1,7 +1,4 @@
-// src/main.ts
-
-// --- MODIFICATION 1: Add fs import ---
-import * as fs from 'fs';
+// cirql-backend/src/main.ts (Final HTTP Version for Local Development)
 
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
@@ -16,9 +13,10 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Express } from 'express';
 
+// cachedServer is for Vercel (serverless) deployment and is correct.
 let cachedServer: Express | undefined;
 
-// Shared function to configure common app settings
+// This shared function is correct, but we'll adjust the fallback origin to http for consistency.
 function configureCommonAppSettings(
   app: NestExpressApplication,
   configService: ConfigService,
@@ -26,8 +24,9 @@ function configureCommonAppSettings(
 ) {
   app.enableCors({
     origin: [
-      configService.get<string>('FRONTEND_URL') || 'https://localhost:3000',
-      'https://uploadthing.com', // Good practice to allow UploadThing's domain
+      // Use HTTP for the local frontend URL to match your final setup.
+      configService.get<string>('FRONTEND_URL') || 'http://localhost:3000',
+      'https://uploadthing.com',
     ],
     credentials: true,
   });
@@ -43,7 +42,6 @@ function configureCommonAppSettings(
   const customSwaggerOptions: SwaggerCustomOptions = {
     customSiteTitle: `Cirql API Docs ${envSuffix}`.trim(),
     customfavIcon: '/favicon.ico',
-
     customCssUrl: [
       'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css',
     ],
@@ -52,64 +50,16 @@ function configureCommonAppSettings(
       'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.js',
     ],
     customCss: `
-      /* Cirql Brand Colors:
-         Primary Blue: #3F8CFF
-         Midnight Navy: #1A1A2E
-         Soft Lilac: #EAE6FF
-         Mint Green: #42F2A1
-         Neutral Gray: #A0A0B2
-      */
-
-      /* Topbar Styling */
-      .swagger-ui .topbar {
-        background-color: ${envSuffix ? '#2B2B40' : '#1A1A2E'};
-      }
-      .swagger-ui .topbar .link,
-      .swagger-ui .topbar .download-url-wrapper .select-label {
-        color: #EAE6FF;
-      }
-      .swagger-ui .topbar .link:hover {
-        color: #3F8CFF;
-      }
-      .swagger-ui .topbar .link img {
-        content: url('/favicon.ico');
-        height: 30px;
-        margin: 5px 10px;
-      }
-
-      /* HTTP Method Badges */
-      .swagger-ui .opblock.opblock-get .opblock-summary-method,
-      .swagger-ui .opblock.opblock-get .tab-header .tab-item.active {
-        background: #3F8CFF;
-      }
-      .swagger-ui .opblock.opblock-post .opblock-summary-method,
-      .swagger-ui .opblock.opblock-post .tab-header .tab-item.active {
-        background: #42F2A1;
-      }
-      .swagger-ui .opblock.opblock-put .opblock-summary-method,
-      .swagger-ui .opblock.opblock-put .tab-header .tab-item.active {
-        background: #EAE6FF;
-      }
-      .swagger-ui .opblock.opblock-delete .opblock-summary-method,
-      .swagger-ui .opblock.opblock-delete .tab-header .tab-item.active {
-        background: #A0A0B2;
-      }
-      .swagger-ui .opblock.opblock-patch .opblock-summary-method,
-      .swagger-ui .opblock.opblock-patch .tab-header .tab-item.active {
-        background: #A0A0B2;
-        opacity: 0.9;
-      }
-
-      /* Text color for method badges for readability */
-      .swagger-ui .opblock .opblock-summary-method {
-        color: #FFFFFF;
-      }
-      .swagger-ui .opblock.opblock-post .opblock-summary-method {
-        color: #1A1A2E;
-      }
-      .swagger-ui .opblock.opblock-put .opblock-summary-method {
-        color: #1A1A2E;
-      }
+      .swagger-ui .topbar { background-color: ${envSuffix ? '#2B2B40' : '#1A1A2E'}; }
+      .swagger-ui .topbar .link, .swagger-ui .topbar .download-url-wrapper .select-label { color: #EAE6FF; }
+      .swagger-ui .topbar .link:hover { color: #3F8CFF; }
+      .swagger-ui .topbar .link img { content: url('/favicon.ico'); height: 30px; margin: 5px 10px; }
+      .swagger-ui .opblock.opblock-get .opblock-summary-method { background: #3F8CFF; }
+      .swagger-ui .opblock.opblock-post .opblock-summary-method { background: #42F2A1; color: #1A1A2E; }
+      .swagger-ui .opblock.opblock-put .opblock-summary-method { background: #EAE6FF; color: #1A1A2E; }
+      .swagger-ui .opblock.opblock-delete .opblock-summary-method { background: #A0A0B2; }
+      .swagger-ui .opblock.opblock-patch .opblock-summary-method { background: #A0A0B2; opacity: 0.9; }
+      .swagger-ui .opblock .opblock-summary-method { color: #FFFFFF; }
     `,
     swaggerOptions: {
       docExpansion: 'list',
@@ -153,18 +103,15 @@ function configureCommonAppSettings(
   );
 }
 
+// This function for Vercel deployment is correct and needs no changes.
 async function bootstrapServerInstance(): Promise<Express> {
   if (cachedServer) {
     return cachedServer;
   }
-
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
-
   configureCommonAppSettings(app, configService);
-
   await app.init();
-
   const expressApp = app.getHttpAdapter().getInstance();
   cachedServer = expressApp;
   return expressApp;
@@ -172,49 +119,34 @@ async function bootstrapServerInstance(): Promise<Express> {
 
 export default bootstrapServerInstance();
 
-// Local development bootstrapping (only if NOT on Vercel and NOT in production for other reasons)
+// This is the section for local development.
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-  // --- START OF FIX: Add this line to allow localhost-to-localhost SSL communication ---
-  // This should ONLY be active for local development.
-  if (process.env.NODE_ENV !== 'production') {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-  }
-  // --- END OF FIX ---
-
   async function startLocalDevelopmentServer() {
-    // --- MODIFICATION 2: Define HTTPS options using the generated certs ---
-    const httpsOptions = {
-      key: fs.readFileSync('./localhost-key.pem'),
-      cert: fs.readFileSync('./localhost.pem'),
-    };
-
-    // --- MODIFICATION 3: Pass httpsOptions to the factory ---
-    const localApp = await NestFactory.create<NestExpressApplication>(
-      AppModule,
-      { httpsOptions },
-    ); // Pass options here
+    // --- START OF THE DEFINITIVE FIX ---
+    // The 'fs' import and 'httpsOptions' object have been removed.
+    // We now create a standard HTTP server by not passing any extra options.
+    const localApp =
+      await NestFactory.create<NestExpressApplication>(AppModule);
+    // --- END OF THE DEFINITIVE FIX ---
 
     const configService = localApp.get(ConfigService);
-
     configureCommonAppSettings(localApp, configService, '(Local)');
-
     const port = configService.get<number>('PORT') || 3001;
     await localApp.listen(port);
 
-    // --- MODIFICATION 4: Update logs to use https ---
+    // --- START OF THE DEFINITIVE FIX ---
+    // The console logs are updated to use http, matching the server configuration.
     console.log(
-      `Application for local development is running on: https://localhost:${port}`,
+      `NestJS backend for local development is running on: http://localhost:${port}`,
     );
     console.log(
-      `Swagger docs available locally at: https://localhost:${port}/api`,
+      `Swagger docs available locally at: http://localhost:${port}/api`,
     );
-    console.log(
-      `Favicon should be available locally at: https://localhost:${port}/favicon.ico`,
-    );
+    // --- END OF THE DEFINITIVE FIX ---
   }
 
   startLocalDevelopmentServer().catch((err) => {
-    console.error('Error during local application start:', err);
+    console.error('Error during local backend start:', err);
     process.exit(1);
   });
 }

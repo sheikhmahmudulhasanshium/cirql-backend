@@ -1,4 +1,3 @@
-// src/support/schemas/message.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
@@ -15,8 +14,9 @@ export class Message {
   @Prop({ required: true })
   content: string;
 
-  @Prop({ type: [String], default: [] })
-  attachments: string[];
+  // --- MODIFICATION: This now stores references to Media documents. ---
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Media' }], default: [] })
+  attachments: Types.ObjectId[];
 
   @Prop({ type: Date, required: false })
   editedAt?: Date;
