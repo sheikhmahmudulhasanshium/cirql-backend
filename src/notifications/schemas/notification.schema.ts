@@ -1,4 +1,3 @@
-// src/notifications/schemas/notification.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
@@ -13,6 +12,11 @@ export enum NotificationType {
   ACCOUNT_STATUS_UPDATE = 'account_status_update',
   SOCIAL_FRIEND_REQUEST = 'social_friend_request',
   SOCIAL_FRIEND_ACCEPT = 'social_friend_accept',
+  SOCIAL_FRIEND_REJECT = 'social_friend_reject',
+  // --- START: ADDED NEW ENUMS ---
+  SOCIAL_FOLLOW_REQUEST = 'social_follow_request',
+  SOCIAL_FOLLOW_ACCEPT = 'social_follow_accept',
+  // --- END: ADDED NEW ENUMS ---
   SOCIAL_FOLLOW = 'social_follow',
   SOCIAL = 'social',
 }

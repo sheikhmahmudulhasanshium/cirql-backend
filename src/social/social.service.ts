@@ -141,3 +141,4 @@ export class SocialService {
     return await profile.save();
   }
 }
+//future improvements could include message requests,group requests, and more complex social interactions

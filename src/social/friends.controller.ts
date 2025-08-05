@@ -1,4 +1,5 @@
-// src/social/friends.controller.ts
+//`src/social/friends.controller.ts`**
+
 import {
   Controller,
   Post,
@@ -48,7 +49,17 @@ export class FriendsController {
     @CurrentUser() user: UserDocument,
     @Param('requestId', ParseObjectIdPipe) requestId: string,
   ) {
-    return this.friendsService.rejectRequest(requestId, user._id.toString());
+    // --- UPDATED: Passing the full user object now ---
+    return this.friendsService.rejectRequest(requestId, user);
+  }
+
+  @Delete('requests/:requestId/cancel')
+  @ApiOperation({ summary: 'Cancel a friend request you have sent' })
+  cancelRequest(
+    @CurrentUser() user: UserDocument,
+    @Param('requestId', ParseObjectIdPipe) requestId: string,
+  ) {
+    return this.friendsService.cancelRequest(requestId, user._id.toString());
   }
 
   @Delete(':friendId')
@@ -61,7 +72,7 @@ export class FriendsController {
   }
 
   @Get('list')
-  @ApiOperation({ summary: 'Get the current user`s friends list' })
+  @ApiOperation({ summary: "Get the current user's friends list" })
   getFriends(@CurrentUser() user: UserDocument) {
     return this.friendsService.getFriends(user._id.toString());
   }
@@ -72,5 +83,13 @@ export class FriendsController {
   })
   getPendingRequests(@CurrentUser() user: UserDocument) {
     return this.friendsService.getPendingRequests(user._id.toString());
+  }
+
+  @Get('requests/sent')
+  @ApiOperation({
+    summary: 'Get all pending friend requests sent by the current user',
+  })
+  getSentRequests(@CurrentUser() user: UserDocument) {
+    return this.friendsService.getSentRequests(user._id.toString());
   }
 }

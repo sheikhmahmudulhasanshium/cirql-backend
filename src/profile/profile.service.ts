@@ -1,9 +1,9 @@
 import {
   Injectable,
   NotFoundException,
-  ForbiddenException,
   forwardRef,
   Inject,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -12,10 +12,15 @@ import { UsersService } from '../users/users.service';
 import { SettingsService } from '../settings/settings.service';
 import { UserDocument } from '../users/schemas/user.schema';
 import { Role } from '../common/enums/role.enum';
-import { ProfileResponseDto } from './dto/profile.response.dto';
-// FIX: Import the SettingDocument type to be used in explicit typing.
-import { SettingDocument } from '../settings/schemas/setting.schema';
+import {
+  ProfileResponseDto,
+  FriendshipStatus,
+  FollowStatus,
+} from './dto/profile.response.dto';
 import { UpdateProfileDto } from './dto/update-profile';
+import { SocialService } from '../social/social.service';
+import { FriendsService } from '../social/friends.service';
+import { FollowersService } from '../social/followers.service';
 
 @Injectable()
 export class ProfileService {
@@ -24,43 +29,130 @@ export class ProfileService {
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     private readonly settingsService: SettingsService,
+    private readonly socialService: SocialService,
+    private readonly friendsService: FriendsService,
+    private readonly followersService: FollowersService,
   ) {}
 
   async findByUserId(
     targetUserId: string,
     requestingUser?: UserDocument,
   ): Promise<ProfileResponseDto> {
-    const targetUser = (await this.usersService.findById(
-      targetUserId,
-    )) as UserDocument;
+    const targetUser = await this.usersService.findById(targetUserId);
     if (!targetUser) {
       throw new NotFoundException('User not found.');
     }
 
-    // FIX: Explicitly type the destructured array elements. This removes all
-    // ambiguity for the linter and compiler, ensuring `profile` is known to be
-    // a `ProfileDocument` and `settings` is a `SettingDocument`.
-    const [profile, settings]: [ProfileDocument, SettingDocument] =
-      await Promise.all([
-        this.findOrCreate(targetUser._id),
-        this.settingsService.findOrCreateByUserId(targetUserId),
-      ]);
+    const isOwner = requestingUser
+      ? requestingUser._id.toString() === targetUserId
+      : false;
+    const isAdmin = requestingUser
+      ? requestingUser.roles.some((role) =>
+          [Role.Admin, Role.Owner].includes(role),
+        )
+      : false;
 
-    const isOwner =
-      requestingUser && requestingUser._id.toString() === targetUserId;
-    const isAdmin =
-      requestingUser &&
-      requestingUser.roles.some((role) =>
-        [Role.Admin, Role.Owner].includes(role),
-      );
-    const isPrivate = settings.accountSettingsPreferences.isPrivate;
+    const [profile, settings, socialProfile] = await Promise.all([
+      this.findOrCreate(targetUser._id),
+      this.settingsService.findOrCreateByUserId(targetUserId),
+      this.socialService.findOrCreateProfile(targetUserId),
+    ]);
 
-    if (isPrivate && !isOwner && !isAdmin) {
-      throw new ForbiddenException('This profile is private.');
+    if (!socialProfile) {
+      throw new NotFoundException('Could not find or create social profile.');
     }
 
-    // NOTE: The final "unsafe assignment" error is now resolved because the explicit
-    // typing above guarantees that `profile.headline` is a `string`.
+    if (!isOwner && !isAdmin) {
+      if (
+        requestingUser &&
+        socialProfile.blockedUsers
+          .map((id) => id.toString())
+          .includes(requestingUser._id.toString())
+      ) {
+        throw new NotFoundException('User not found.');
+      }
+      if (settings.accountSettingsPreferences.isPrivate) {
+        throw new ForbiddenException('This is a private account.');
+      }
+    }
+
+    const friendsCount = socialProfile.friends.length;
+    const followersCount = socialProfile.followers.length;
+    const followingCount = socialProfile.following.length;
+    let pendingFriendRequestsCount = 0;
+
+    if (isOwner) {
+      const pendingRequests =
+        await this.friendsService.getPendingRequests(targetUserId);
+      pendingFriendRequestsCount = pendingRequests.length;
+    }
+
+    let mutualFriendsCount = 0;
+    let friendshipStatus: FriendshipStatus = FriendshipStatus.NONE;
+    let friendRequestId: string | undefined = undefined;
+    let followStatus: FollowStatus = FollowStatus.NONE;
+    let followRequestId: string | undefined = undefined;
+
+    if (requestingUser && !isOwner) {
+      const requesterId = requestingUser._id.toString();
+      const requesterSocialProfile =
+        await this.socialService.getProfile(requesterId);
+
+      if (requesterSocialProfile) {
+        const requesterFriendIds = new Set(
+          requesterSocialProfile.friends.map((id) => id.toString()),
+        );
+        const targetFriendIds = socialProfile.friends.map((id) =>
+          id.toString(),
+        );
+        mutualFriendsCount = targetFriendIds.filter((id) =>
+          requesterFriendIds.has(id),
+        ).length;
+
+        // 1. Friendship Status
+        if (requesterFriendIds.has(targetUserId)) {
+          friendshipStatus = FriendshipStatus.FRIENDS;
+        } else {
+          const pendingRequest =
+            await this.friendsService.findPendingRequestBetween(
+              requesterId,
+              targetUserId,
+            );
+          if (pendingRequest) {
+            // --- START: CORRECTED LINE ---
+            friendRequestId = (pendingRequest._id as Types.ObjectId).toString();
+            // --- END: CORRECTED LINE ---
+            if (pendingRequest.requester.toString() === requesterId) {
+              friendshipStatus = FriendshipStatus.REQUEST_SENT;
+            } else {
+              friendshipStatus = FriendshipStatus.REQUEST_RECEIVED;
+            }
+          }
+        }
+
+        // 2. Follow Status
+        const isFollowing = requesterSocialProfile.following
+          .map((id) => id.toString())
+          .includes(targetUserId);
+
+        if (isFollowing) {
+          followStatus = FollowStatus.FOLLOWING;
+        } else if (settings.accountSettingsPreferences.isPrivate) {
+          const pendingFollow =
+            await this.followersService.findPendingFollowRequest(
+              requesterId,
+              targetUserId,
+            );
+          if (pendingFollow) {
+            followStatus = FollowStatus.REQUEST_SENT;
+            // --- START: CORRECTED LINE ---
+            followRequestId = (pendingFollow._id as Types.ObjectId).toString();
+            // --- END: CORRECTED LINE ---
+          }
+        }
+      }
+    }
+
     return {
       id: targetUser._id.toString(),
       firstName: targetUser.firstName,
@@ -72,8 +164,17 @@ export class ProfileService {
       bio: profile.bio,
       location: profile.location,
       website: profile.website,
-      isPrivate: isPrivate,
+      isPrivate: settings.accountSettingsPreferences.isPrivate,
       createdAt: targetUser.createdAt!,
+      friendsCount,
+      followersCount,
+      followingCount,
+      pendingFriendRequestsCount,
+      mutualFriendsCount,
+      friendshipStatus,
+      friendRequestId,
+      followStatus,
+      followRequestId,
     };
   }
 

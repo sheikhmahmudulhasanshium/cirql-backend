@@ -12,6 +12,13 @@ import {
   FriendRequestSchema,
 } from './schemas/friend-request.schema';
 import { Group, GroupSchema } from './schemas/group.schema';
+// --- START: NEW IMPORTS ---
+import {
+  FollowRequest,
+  FollowRequestSchema,
+} from './schemas/follow-request.schema';
+import { SettingsModule } from '../settings/settings.module';
+// --- END: NEW IMPORTS ---
 import { FriendsController } from './friends.controller';
 import { FriendsService } from './friends.service';
 import { FollowersController } from './followers.controller';
@@ -29,10 +36,14 @@ import { RecommendationsService } from './recommendations.service';
       { name: SocialProfile.name, schema: SocialProfileSchema },
       { name: FriendRequest.name, schema: FriendRequestSchema },
       { name: Group.name, schema: GroupSchema },
+      // --- START: REGISTER NEW SCHEMA ---
+      { name: FollowRequest.name, schema: FollowRequestSchema },
+      // --- END: REGISTER NEW SCHEMA ---
     ]),
     UsersModule,
     AuthModule,
-    forwardRef(() => NotificationsModule), // Use forwardRef to handle circular dependency
+    SettingsModule, // Keep this import
+    forwardRef(() => NotificationsModule),
   ],
   controllers: [
     SocialController,
@@ -48,7 +59,6 @@ import { RecommendationsService } from './recommendations.service';
     GroupsService,
     RecommendationsService,
   ],
-  // Export services that other modules (like Notifications) might need.
   exports: [SocialService, FriendsService, FollowersService, GroupsService],
 })
 export class SocialModule {}

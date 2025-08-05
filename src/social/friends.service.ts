@@ -1,4 +1,3 @@
-// src/social/friends.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -29,6 +28,27 @@ export class FriendsService {
     @Inject(forwardRef(() => NotificationsService))
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  async findPendingRequestBetween(
+    userAId: string,
+    userBId: string,
+  ): Promise<FriendRequestDocument | null> {
+    return this.friendRequestModel
+      .findOne({
+        status: FriendRequestStatus.PENDING,
+        $or: [
+          {
+            requester: new Types.ObjectId(userAId),
+            recipient: new Types.ObjectId(userBId),
+          },
+          {
+            requester: new Types.ObjectId(userBId),
+            recipient: new Types.ObjectId(userAId),
+          },
+        ],
+      })
+      .exec();
+  }
 
   async sendRequest(
     requester: UserDocument,
@@ -94,7 +114,10 @@ export class FriendsService {
       title: 'New Friend Request',
       message: `${requesterName} sent you a friend request.`,
       type: NotificationType.SOCIAL_FRIEND_REQUEST,
-      linkUrl: '/social/friends/requests',
+      // --- START: CORRECTED CODE ---
+      // This link takes the user directly to the page where they can accept or decline.
+      linkUrl: '/social/friend-requests',
+      // --- END: CORRECTED CODE ---
     });
 
     return newRequest;
@@ -151,7 +174,10 @@ export class FriendsService {
       title: 'Friend Request Accepted',
       message: `${recipientName} accepted your friend request.`,
       type: NotificationType.SOCIAL_FRIEND_ACCEPT,
-      linkUrl: `/profile/${request.recipient.toString()}`,
+      // --- START: CORRECTED CODE ---
+      // This links to the profile of the person who just accepted the request (the new friend).
+      linkUrl: `/profile/${currentUserId}`,
+      // --- END: CORRECTED CODE ---
     });
 
     return { message: 'Friend request accepted successfully.' };
@@ -159,9 +185,11 @@ export class FriendsService {
 
   async rejectRequest(
     requestId: string,
-    currentUserId: string,
+    currentUser: UserDocument,
   ): Promise<{ message: string }> {
-    const result = await this.friendRequestModel
+    const currentUserId = currentUser._id.toString();
+
+    const request: FriendRequestDocument | null = await this.friendRequestModel
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(requestId),
@@ -172,13 +200,45 @@ export class FriendsService {
       )
       .exec();
 
-    if (!result) {
+    if (!request) {
       throw new NotFoundException(
         'Friend request not found or you are not the recipient.',
       );
     }
 
+    const rejecterName =
+      `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() ||
+      'A user';
+
+    await this.notificationsService.createNotification({
+      userId: request.requester,
+      title: 'Friend Request Rejected',
+      message: `${rejecterName} declined your friend request.`,
+      type: NotificationType.SOCIAL_FRIEND_REJECT,
+      // This link is already correct, providing context by linking to the rejecter's profile.
+      linkUrl: `/profile/${currentUserId}`,
+    });
+
     return { message: 'Friend request rejected.' };
+  }
+
+  async cancelRequest(
+    requestId: string,
+    requesterId: string,
+  ): Promise<{ message: string }> {
+    const result = await this.friendRequestModel.findOneAndDelete({
+      _id: new Types.ObjectId(requestId),
+      requester: new Types.ObjectId(requesterId),
+      status: FriendRequestStatus.PENDING,
+    });
+
+    if (!result) {
+      throw new NotFoundException(
+        'Sent friend request not found or already handled.',
+      );
+    }
+
+    return { message: 'Friend request cancelled.' };
   }
 
   async removeFriend(
@@ -225,7 +285,17 @@ export class FriendsService {
         recipient: new Types.ObjectId(userId),
         status: FriendRequestStatus.PENDING,
       })
-      .populate('requester', 'firstName lastName email picture')
+      .populate('requester', 'firstName lastName email picture id')
+      .exec();
+  }
+
+  async getSentRequests(userId: string) {
+    return this.friendRequestModel
+      .find({
+        requester: new Types.ObjectId(userId),
+        status: FriendRequestStatus.PENDING,
+      })
+      .populate('recipient', 'firstName lastName email picture id')
       .exec();
   }
 }
