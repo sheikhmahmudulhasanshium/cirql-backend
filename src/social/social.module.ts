@@ -1,3 +1,4 @@
+// src/social/social.module.ts
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UsersModule } from '../users/users.module';
@@ -12,13 +13,16 @@ import {
   FriendRequestSchema,
 } from './schemas/friend-request.schema';
 import { Group, GroupSchema } from './schemas/group.schema';
-// --- START: NEW IMPORTS ---
 import {
   FollowRequest,
   FollowRequestSchema,
 } from './schemas/follow-request.schema';
 import { SettingsModule } from '../settings/settings.module';
-// --- END: NEW IMPORTS ---
+// --- START: ADDED/MODIFIED IMPORTS ---
+import { ProfileModule } from '../profile/profile.module';
+// We need to import the Setting schema to register it here.
+import { Setting, SettingSchema } from '../settings/schemas/setting.schema';
+// --- END: ADDED/MODIFIED IMPORTS ---
 import { FriendsController } from './friends.controller';
 import { FriendsService } from './friends.service';
 import { FollowersController } from './followers.controller';
@@ -36,14 +40,18 @@ import { RecommendationsService } from './recommendations.service';
       { name: SocialProfile.name, schema: SocialProfileSchema },
       { name: FriendRequest.name, schema: FriendRequestSchema },
       { name: Group.name, schema: GroupSchema },
-      // --- START: REGISTER NEW SCHEMA ---
       { name: FollowRequest.name, schema: FollowRequestSchema },
-      // --- END: REGISTER NEW SCHEMA ---
+      // --- START: FIX ---
+      // Register the Setting schema here to make SettingModel available
+      // within the SocialModule's dependency injection context.
+      { name: Setting.name, schema: SettingSchema },
+      // --- END: FIX ---
     ]),
     UsersModule,
     AuthModule,
-    SettingsModule, // Keep this import
+    SettingsModule,
     forwardRef(() => NotificationsModule),
+    forwardRef(() => ProfileModule),
   ],
   controllers: [
     SocialController,
